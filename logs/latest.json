@@ -1,13 +1,15 @@
 {
-  "created_at": "2026-06-06T05:49:09.252Z",
-  "commit": "ba1b40b094316fcb95e5efebf3419b9d99ede8d7",
+  "created_at": "2026-06-06T09:48:50.527Z",
+  "commit": "2832dab0b7e06dbf30b784f94a578d7f9d286b9a",
   "results": [
     {
       "keyword": "battle",
-      "collected_at": "2026-06-06T05:49:09.251Z",
-      "requestsSeen": 388,
-      "jsonResponses": 80,
-      "discoveredCount": 36,
+      "collected_at": "2026-06-06T09:48:50.527Z",
+      "popupClosed": true,
+      "liveTabClicked": false,
+      "requestsSeen": 330,
+      "jsonResponses": 79,
+      "discoveredCount": 35,
       "discovered": [
         {
           "url": "https://libraweb.tiktokw.us/service/2/abtest_config/",
@@ -65,10 +67,10 @@
           "url": "https://www.tiktok.com/tiktok/popup/dispatch/v1",
           "size": 187,
           "keys": [
-            "status_code",
             "status_msg",
             "extra",
-            "log_pb"
+            "log_pb",
+            "status_code"
           ],
           "hints": []
         },
@@ -83,12 +85,12 @@
           "hints": []
         },
         {
-          "url": "https://www.tiktok.com/ttwid/check/",
-          "size": 63,
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
           "keys": [
-            "status_code",
-            "message",
-            "sub_status_code"
+            "e",
+            "sc",
+            "tc"
           ],
           "hints": []
         },
@@ -133,16 +135,6 @@
           ]
         },
         {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
           "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
@@ -154,26 +146,6 @@
         },
         {
           "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -211,7 +183,29 @@
           "hints": []
         },
         {
-          "url": "https://mcs.tiktokw.us/v1/list",
+          "url": "https://www.tiktokw.us/api/global-footer/graphql",
+          "size": 11962,
+          "keys": [
+            "data",
+            "extensions"
+          ],
+          "hints": [
+            "room",
+            "live"
+          ]
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -230,16 +224,24 @@
           "hints": []
         },
         {
-          "url": "https://www.tiktokw.us/api/global-footer/graphql",
-          "size": 11962,
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
           "keys": [
-            "data",
-            "extensions"
+            "e",
+            "sc",
+            "tc"
           ],
-          "hints": [
-            "room",
-            "live"
-          ]
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
         },
         {
           "url": "https://mcs.tiktokw.us/v1/list",
@@ -260,6 +262,26 @@
           "hints": []
         },
         {
+          "url": "https://www.tiktok.com/ttwid/check/",
+          "size": 63,
+          "keys": [
+            "status_code",
+            "message",
+            "sub_status_code"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
           "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
@@ -300,7 +322,7 @@
           "hints": []
         },
         {
-          "url": "https://mcs.tiktokv.us/v1/list",
+          "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -312,36 +334,6 @@
         {
           "url": "https://mcs.tiktokw.us/v1/list",
           "size": 23,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 23,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
           "keys": [
             "e",
             "sc",
@@ -373,131 +365,114 @@
       "pageDiagnostics": {
         "title": "Find 'battle' on TikTok | TikTok Search",
         "url": "https://www.tiktok.com/search/user?q=battle",
-        "bodyTextLength": 1787,
-        "bodyTextSample": "TikTok\nbattle\nFor You\nShop\nExplore\nFollowing\nLIVE\nUpload\nProfile\nMore\nLog in\nCompany\nProgram\nTerms & Policies\n© 2026 TikTok\nTop\nUsers\nVideos\nLIVE\nPhoto\n\nBASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow\n\nBattle Sports\n\nbattlesports\n\n857.5K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow\n\nbattlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow\n\nbattlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow\n\nbattles.app\n\nbattles.app\n\n30.1K\n\nFollowers\n\n·\n\n55K\n\nLikes\n\nFollow\n\nQuiz Battle 🧠\n\nquizbattle01\n\n125.1K\n\nFollowers\n\n·\n\n328.9K\n\nLikes\n\nFollow\n\nBattlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow\n\nBattles Digital\n\nbattles.digital\n\n345.8K\n\nFollowers\n\n·\n\n21M\n\nLikes\n\nFollow\n\nFNF Battle Begins\n\nbattlebegins\n\n124.6K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow\n\nPlayboy X - Battle Rap Bars\n\nplaybooyx\n\n133.4K\n\nFollowers\n\n·\n\n3.3M\n\nLikes\n\nFollow\n\nGOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow\n\nBattlefield\n\nbattlefield\n\n540.9K\n\nFollowers\n\n·\n\n7.8M\n\nLikes\n\nFollow\n\nLip Sync Battle\n\nlipsyncbattle\n\n4M\n\nFollowers\n\n·\n\n48.1M\n\nLikes\n\nFollow\n\nBattlefront Bros\n\nbattlefrontbros\n\n343.1K\n\nFollowers\n\n·\n\n14.8M\n\nLikes\n\nFollow\n\n__BATTLE__\n\n___battle__\n\n978\n\nFollowers\n\n·\n\n1800\n\nLikes\n\nFollow\n\nBattle\n\nbattle8664\n\n7245\n\nFollowers\n\n·\n\n9266\n\nLikes\n\nFollow\n\nBattleX _ Official 🇲🇲\n\nbattlex777\n\n158.4K\n\nFollowers\n\n·\n\n346.2K\n\nLikes\n\nFollow\nLIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n219.6K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow\n\nRoast Battle\n\nroast_battle\n\n269.5K\n\nFollowers\n\n·\n\n2.7M\n\nLikes\n\nFollow\n\nDaFuq!?Boom!✅\n\nbattlebots00\n\n1.1M\n\nFollowers\n\n·\n\n15.4M\n\nLikes\n\nFollow\n\nOthers searched for\n\nFootball touchdown battle highlights\n\nBaritone saxophone battle music playlist\n\nGuy vs guy simulation game funniest battles\n\nBattle edit song recommendations\n\nLog in",
-        "anchorCount": 30,
-        "anchors": [
+        "bodyTextLength": 1065,
+        "bodyTextSample": "TikTok\nbattle\nFor You\nShop\nExplore\nFollowing\nLIVE\nUpload\nProfile\nMore\nLog in\nCompany\nProgram\nTerms & Policies\n© 2026 TikTok\nTop\nUsers\nVideos\nLIVE\nPhoto\n\nBASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow\n\nBattle Sports\n\nbattlesports\n\n857.6K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow\n\nbattlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow\n\nBattlefield6\n\nbu.bu.lay.food.blo\n\n149.5K\n\nFollowers\n\n·\n\n725.4K\n\nLikes\n\nFollow\n\nbattlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow\n\nGOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow\n\nBattlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow\n\nFNF Battle Begins\n\nbattlebegins\n\n124.7K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow\nLIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n220.2K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow\n\nAnime battle\n\ndemon_9754\n\n140.2K\n\nFollowers\n\n·\n\n16.4M\n\nLikes\n\nFollow\n\nOthers searched for\n\nFootball touchdown battle highlights\n\nBaritone saxophone battle music playlist\n\nGuy vs guy simulation game funniest battles\n\nBattle edit song recommendations\n\nLog in",
+        "htmlLength": 487707,
+        "anchorCount": 20,
+        "creatorCount": 10,
+        "creators": [
           {
-            "text": "TikTok",
-            "href": "https://www.tiktok.com/"
+            "username": "based",
+            "profileUrl": "https://www.tiktok.com/@based",
+            "text": "BASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow\n\nBattle Sports\n\nbattlesports\n\n857.6K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow\n\nbattlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow\n\nBattlefield6\n\nbu.bu.lay.food.blo\n\n149.5K\n\nFollowers\n\n·\n\n725.4K\n\nLikes\n\nFollow\n\nbattlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow\n\nGOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow\n\nBattlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow\n\nFNF Battle Begins\n\nbattlebegins\n\n124.7K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow\nLIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n220.2K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow\n\nAnime battle\n\ndemon_9754\n\n140.2K\n\nFollowers\n\n·\n\n16.4M\n\nLikes\n\nFollow"
           },
           {
-            "text": "TikTok",
-            "href": "https://www.tiktok.com/"
+            "username": "battlesports",
+            "profileUrl": "https://www.tiktok.com/@battlesports",
+            "text": "BASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow\n\nBattle Sports\n\nbattlesports\n\n857.6K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow\n\nbattlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow\n\nBattlefield6\n\nbu.bu.lay.food.blo\n\n149.5K\n\nFollowers\n\n·\n\n725.4K\n\nLikes\n\nFollow\n\nbattlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow\n\nGOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow\n\nBattlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow\n\nFNF Battle Begins\n\nbattlebegins\n\n124.7K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow\nLIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n220.2K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow\n\nAnime battle\n\ndemon_9754\n\n140.2K\n\nFollowers\n\n·\n\n16.4M\n\nLikes\n\nFollow"
           },
           {
-            "text": "For You",
-            "href": "https://www.tiktok.com/"
+            "username": "battlebost1988",
+            "profileUrl": "https://www.tiktok.com/@battlebost1988",
+            "text": "BASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow\n\nBattle Sports\n\nbattlesports\n\n857.6K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow\n\nbattlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow\n\nBattlefield6\n\nbu.bu.lay.food.blo\n\n149.5K\n\nFollowers\n\n·\n\n725.4K\n\nLikes\n\nFollow\n\nbattlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow\n\nGOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow\n\nBattlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow\n\nFNF Battle Begins\n\nbattlebegins\n\n124.7K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow\nLIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n220.2K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow\n\nAnime battle\n\ndemon_9754\n\n140.2K\n\nFollowers\n\n·\n\n16.4M\n\nLikes\n\nFollow"
           },
           {
-            "text": "Shop",
-            "href": "https://www.tiktok.com/shop"
+            "username": "bu.bu.lay.food.blo",
+            "profileUrl": "https://www.tiktok.com/@bu.bu.lay.food.blo",
+            "text": "BASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow\n\nBattle Sports\n\nbattlesports\n\n857.6K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow\n\nbattlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow\n\nBattlefield6\n\nbu.bu.lay.food.blo\n\n149.5K\n\nFollowers\n\n·\n\n725.4K\n\nLikes\n\nFollow\n\nbattlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow\n\nGOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow\n\nBattlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow\n\nFNF Battle Begins\n\nbattlebegins\n\n124.7K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow\nLIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n220.2K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow\n\nAnime battle\n\ndemon_9754\n\n140.2K\n\nFollowers\n\n·\n\n16.4M\n\nLikes\n\nFollow"
           },
           {
-            "text": "Explore",
-            "href": "https://www.tiktok.com/explore"
+            "username": "battlebots",
+            "profileUrl": "https://www.tiktok.com/@battlebots",
+            "text": "BASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow\n\nBattle Sports\n\nbattlesports\n\n857.6K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow\n\nbattlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow\n\nBattlefield6\n\nbu.bu.lay.food.blo\n\n149.5K\n\nFollowers\n\n·\n\n725.4K\n\nLikes\n\nFollow\n\nbattlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow\n\nGOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow\n\nBattlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow\n\nFNF Battle Begins\n\nbattlebegins\n\n124.7K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow\nLIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n220.2K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow\n\nAnime battle\n\ndemon_9754\n\n140.2K\n\nFollowers\n\n·\n\n16.4M\n\nLikes\n\nFollow"
           },
           {
-            "text": "Following",
-            "href": "https://www.tiktok.com/following"
+            "username": "goatbattle0",
+            "profileUrl": "https://www.tiktok.com/@goatbattle0",
+            "text": "BASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow\n\nBattle Sports\n\nbattlesports\n\n857.6K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow\n\nbattlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow\n\nBattlefield6\n\nbu.bu.lay.food.blo\n\n149.5K\n\nFollowers\n\n·\n\n725.4K\n\nLikes\n\nFollow\n\nbattlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow\n\nGOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow\n\nBattlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow\n\nFNF Battle Begins\n\nbattlebegins\n\n124.7K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow\nLIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n220.2K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow\n\nAnime battle\n\ndemon_9754\n\n140.2K\n\nFollowers\n\n·\n\n16.4M\n\nLikes\n\nFollow"
           },
           {
-            "text": "LIVE",
-            "href": "https://www.tiktok.com/live"
+            "username": "battlerappedits",
+            "profileUrl": "https://www.tiktok.com/@battlerappedits",
+            "text": "BASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow\n\nBattle Sports\n\nbattlesports\n\n857.6K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow\n\nbattlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow\n\nBattlefield6\n\nbu.bu.lay.food.blo\n\n149.5K\n\nFollowers\n\n·\n\n725.4K\n\nLikes\n\nFollow\n\nbattlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow\n\nGOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow\n\nBattlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow\n\nFNF Battle Begins\n\nbattlebegins\n\n124.7K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow\nLIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n220.2K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow\n\nAnime battle\n\ndemon_9754\n\n140.2K\n\nFollowers\n\n·\n\n16.4M\n\nLikes\n\nFollow"
           },
           {
-            "text": "Upload",
-            "href": "https://www.tiktok.com/tiktokstudio/upload?from=webapp&tab=video"
+            "username": "battlebegins",
+            "profileUrl": "https://www.tiktok.com/@battlebegins",
+            "text": "BASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow\n\nBattle Sports\n\nbattlesports\n\n857.6K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow\n\nbattlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow\n\nBattlefield6\n\nbu.bu.lay.food.blo\n\n149.5K\n\nFollowers\n\n·\n\n725.4K\n\nLikes\n\nFollow\n\nbattlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow\n\nGOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow\n\nBattlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow\n\nFNF Battle Begins\n\nbattlebegins\n\n124.7K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow\nLIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n220.2K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow\n\nAnime battle\n\ndemon_9754\n\n140.2K\n\nFollowers\n\n·\n\n16.4M\n\nLikes\n\nFollow"
           },
           {
-            "text": "Profile",
-            "href": "https://www.tiktok.com/@"
+            "username": "battleofkings_",
+            "profileUrl": "https://www.tiktok.com/@battleofkings_",
+            "text": "BASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow\n\nBattle Sports\n\nbattlesports\n\n857.6K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow\n\nbattlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow\n\nBattlefield6\n\nbu.bu.lay.food.blo\n\n149.5K\n\nFollowers\n\n·\n\n725.4K\n\nLikes\n\nFollow\n\nbattlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow\n\nGOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow\n\nBattlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow\n\nFNF Battle Begins\n\nbattlebegins\n\n124.7K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow\nLIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n220.2K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow\n\nAnime battle\n\ndemon_9754\n\n140.2K\n\nFollowers\n\n·\n\n16.4M\n\nLikes\n\nFollow"
           },
           {
-            "text": "BASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@based"
-          },
-          {
-            "text": "Battle Sports\n\nbattlesports\n\n857.5K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battlesports"
-          },
-          {
-            "text": "battlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battlebost1988"
-          },
-          {
-            "text": "battlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battlebots"
-          },
-          {
-            "text": "battles.app\n\nbattles.app\n\n30.1K\n\nFollowers\n\n·\n\n55K\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battles.app"
-          },
-          {
-            "text": "Quiz Battle 🧠\n\nquizbattle01\n\n125.1K\n\nFollowers\n\n·\n\n328.9K\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@quizbattle01"
-          },
-          {
-            "text": "Battlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battlerappedits"
-          },
-          {
-            "text": "Battles Digital\n\nbattles.digital\n\n345.8K\n\nFollowers\n\n·\n\n21M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battles.digital"
-          },
-          {
-            "text": "FNF Battle Begins\n\nbattlebegins\n\n124.6K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battlebegins"
-          },
-          {
-            "text": "Playboy X - Battle Rap Bars\n\nplaybooyx\n\n133.4K\n\nFollowers\n\n·\n\n3.3M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@playbooyx"
-          },
-          {
-            "text": "GOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@goatbattle0"
-          },
-          {
-            "text": "Battlefield\n\nbattlefield\n\n540.9K\n\nFollowers\n\n·\n\n7.8M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battlefield"
-          },
-          {
-            "text": "Lip Sync Battle\n\nlipsyncbattle\n\n4M\n\nFollowers\n\n·\n\n48.1M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@lipsyncbattle"
-          },
-          {
-            "text": "Battlefront Bros\n\nbattlefrontbros\n\n343.1K\n\nFollowers\n\n·\n\n14.8M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battlefrontbros"
-          },
-          {
-            "text": "__BATTLE__\n\n___battle__\n\n978\n\nFollowers\n\n·\n\n1800\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@___battle__"
-          },
-          {
-            "text": "Battle\n\nbattle8664\n\n7245\n\nFollowers\n\n·\n\n9266\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battle8664"
-          },
-          {
-            "text": "BattleX _ Official 🇲🇲\n\nbattlex777\n\n158.4K\n\nFollowers\n\n·\n\n346.2K\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battlex777"
-          },
-          {
-            "text": "LIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n219.6K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battleofkings_"
-          },
-          {
-            "text": "LIVE",
-            "href": "https://www.tiktok.com/@battleofkings_/live?enter_from_merge=search_user&enter_method=others_photo&search_id=202606060548567A83216D154F241B6525&search_keyword=battle&search_result_id=6733885882548225026&search_type=user"
-          },
-          {
-            "text": "Roast Battle\n\nroast_battle\n\n269.5K\n\nFollowers\n\n·\n\n2.7M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@roast_battle"
-          },
-          {
-            "text": "DaFuq!?Boom!✅\n\nbattlebots00\n\n1.1M\n\nFollowers\n\n·\n\n15.4M\n\nLikes\n\nFollow",
-            "href": "https://www.tiktok.com/@battlebots00"
+            "username": "demon_9754",
+            "profileUrl": "https://www.tiktok.com/@demon_9754",
+            "text": "BASED\n\nbased\n\n3.5M\n\nFollowers\n\n·\n\n110.8M\n\nLikes\n\nFollow\n\nBattle Sports\n\nbattlesports\n\n857.6K\n\nFollowers\n\n·\n\n28.8M\n\nLikes\n\nFollow\n\nbattlebost1988\n\nbattlebost1988\n\n342.2K\n\nFollowers\n\n·\n\n4.5M\n\nLikes\n\nFollow\n\nBattlefield6\n\nbu.bu.lay.food.blo\n\n149.5K\n\nFollowers\n\n·\n\n725.4K\n\nLikes\n\nFollow\n\nbattlebots\n\nbattlebots\n\n7.4M\n\nFollowers\n\n·\n\n50.1M\n\nLikes\n\nFollow\n\nGOAT BATTLE ⚽\n\ngoatbattle0\n\n155K\n\nFollowers\n\n·\n\n723.3K\n\nLikes\n\nFollow\n\nBattlerappedits\n\nbattlerappedits\n\n754.7K\n\nFollowers\n\n·\n\n25.4M\n\nLikes\n\nFollow\n\nFNF Battle Begins\n\nbattlebegins\n\n124.7K\n\nFollowers\n\n·\n\n1.4M\n\nLikes\n\nFollow\nLIVE\n\nBATTLE OF KINGS\n\nbattleofkings_\n\n220.2K\n\nFollowers\n\n·\n\n1.8M\n\nLikes\n\nFollow\n\nAnime battle\n\ndemon_9754\n\n140.2K\n\nFollowers\n\n·\n\n16.4M\n\nLikes\n\nFollow"
           }
-        ]
+        ],
+        "images": [
+          {
+            "alt": "Avatar for based",
+            "src": "https://p16-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/aac55800d8b7b5ffc5990bfa7b6196e2~tplv-tiktokx-cropcenter:100:100.jpeg?biz_tag=tiktok_user.user_cover&dr=9640&idc=useast5&ps=13740610&refresh_token=0c68deb6&shcp=c1333099&shp=30310797&t=4d5b0474&x-expires=1780822800&x-signature=oT6O6g0LdLhaNJhzAoIsoP1RhZs%3D"
+          },
+          {
+            "alt": "Avatar for battlesports",
+            "src": "https://p19-common-sign.tiktokcdn-us.com/tos-maliva-avt-0068/7332808352910540805~tplv-tiktokx-cropcenter:100:100.jpeg?biz_tag=tiktok_user.user_cover&dr=9640&idc=useast5&ps=13740610&refresh_token=ecd57c96&shcp=c1333099&shp=30310797&t=4d5b0474&x-expires=1780822800&x-signature=V4eBTBQXC86DPqHy0b%2BSn6yXwMU%3D"
+          },
+          {
+            "alt": "Avatar for battlebost1988",
+            "src": "https://p16-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/079bf2982a79d3a1f474ceac9b28c70a~tplv-tiktokx-cropcenter:100:100.jpeg?biz_tag=tiktok_user.user_cover&dr=9640&idc=useast5&ps=13740610&refresh_token=a87e4bf7&shcp=c1333099&shp=30310797&t=4d5b0474&x-expires=1780822800&x-signature=%2BowVm8GTlQDWeCzTJl6SIDS2uBg%3D"
+          },
+          {
+            "alt": "Avatar for bu.bu.lay.food.blo",
+            "src": "https://p16-common-sign.tiktokcdn-us.com/tos-alisg-avt-0068/2ab0c927982f7d0573f14e246b1ef2d5~tplv-tiktokx-cropcenter:100:100.jpeg?biz_tag=tiktok_user.user_cover&dr=9640&idc=useast5&ps=13740610&refresh_token=7ab05e18&shcp=c1333099&shp=30310797&t=4d5b0474&x-expires=1780822800&x-signature=s%2FymsZbC1tXeBbvYE6JXcq4xWGs%3D"
+          },
+          {
+            "alt": "Avatar for battlebots",
+            "src": "https://p19-common-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/d00835381db29e8a3791e8f0cf8c4b7f~tplv-tiktokx-cropcenter:100:100.jpeg?biz_tag=tiktok_user.user_cover&dr=9640&idc=useast5&ps=13740610&refresh_token=a89fe60d&shcp=c1333099&shp=30310797&t=4d5b0474&x-expires=1780822800&x-signature=yUzvx4tB3PEyzOzigk6q0QwxVgA%3D"
+          },
+          {
+            "alt": "Avatar for goatbattle0",
+            "src": "https://p16-common-sign.tiktokcdn-us.com/tos-maliva-avt-0068/538d3fe2fcecaef1fdf77f6c0ba5f78a~tplv-tiktokx-cropcenter:100:100.jpeg?biz_tag=tiktok_user.user_cover&dr=9640&idc=useast5&ps=13740610&refresh_token=6dc0d676&shcp=c1333099&shp=30310797&t=4d5b0474&x-expires=1780822800&x-signature=9ut8kYS5nYTBCIFCZInJkcqLlLo%3D"
+          },
+          {
+            "alt": "Avatar for battlerappedits",
+            "src": "https://p19-common-sign.tiktokcdn-us.com/tos-useast8-avt-0068-tx2/9014585d814e2e3f45c9c5994b3fc6c6~tplv-tiktokx-cropcenter:100:100.jpeg?biz_tag=tiktok_user.user_cover&dr=9640&idc=useast5&ps=13740610&refresh_token=b9a1ee5f&shcp=c1333099&shp=30310797&t=4d5b0474&x-expires=1780822800&x-signature=HLrYgShDYrSdrTg5BWXD%2FWWairo%3D"
+          },
+          {
+            "alt": "Avatar for battlebegins",
+            "src": "https://p19-common-sign.tiktokcdn-us.com/tos-alisg-avt-0068/4cefdf2de41d70183327c200a0ac7ea9~tplv-tiktokx-cropcenter:100:100.jpeg?biz_tag=tiktok_user.user_cover&dr=9640&idc=useast5&ps=13740610&refresh_token=40221fd7&shcp=c1333099&shp=30310797&t=4d5b0474&x-expires=1780822800&x-signature=Wvea%2B%2FGXXREX0FmdrMUd%2Fg7Qlh0%3D"
+          },
+          {
+            "alt": "",
+            "src": "https://p16-common-sign.tiktokcdn-us.com/tos-alisg-avt-0068/fa02486c0a3c0e1a53030e9f13ccb945~tplv-tiktokx-cropcenter:100:100.jpeg?biz_tag=tiktok_user.user_cover&dr=9640&idc=useast5&ps=13740610&refresh_token=8a775487&shcp=c1333099&shp=30310797&t=4d5b0474&x-expires=1780822800&x-signature=EJAhdtuUkf8beq%2Bv2P4RowfetnE%3D"
+          },
+          {
+            "alt": "Avatar for demon_9754",
+            "src": "https://p16-common-sign.tiktokcdn-us.com/tos-alisg-avt-0068/7eb8ee8e45984a89d2092322ec2421d9~tplv-tiktokx-cropcenter:100:100.jpeg?biz_tag=tiktok_user.user_cover&dr=9640&idc=useast5&ps=13740610&refresh_token=b48f475f&shcp=c1333099&shp=30310797&t=4d5b0474&x-expires=1780822800&x-signature=Sz78mx3G1wlEPkn6qrMBN7gc8j0%3D"
+          }
+        ],
+        "flags": {
+          "hasLoginText": true,
+          "hasSearchLoginText": false,
+          "hasLiveText": true,
+          "hasCaptchaText": false,
+          "hasRoomText": true,
+          "hasUniqueIdText": false,
+          "hasItemListText": true
+        }
       }
     }
   ]
