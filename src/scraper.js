@@ -79,19 +79,14 @@ async function closeLoginPopup(page) {
   }
 }
 
-async function clickLiveTab(page) {
-  try {
-    await page.getByText('LIVE', { exact: true }).click({
-      timeout: 5000
-    });
+async function forceLiveSearch(page, keyword) {
+  await page.goto(`https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60000
+  });
 
-    console.log('Clicked LIVE tab');
-    await page.waitForTimeout(8000);
-    return true;
-  } catch (error) {
-    console.log('Could not click LIVE tab:', String(error?.message || error));
-    return false;
-  }
+  await page.waitForTimeout(8000);
+  return true;
 }
 
 function extractTikTokPage() {
@@ -195,7 +190,7 @@ export async function debugTikTokPage(keyword = 'battle') {
     });
 
     popupClosed = await closeLoginPopup(page);
-    liveTabClicked = await clickLiveTab(page);
+    liveTabClicked = await forceLiveSearch(page, keyword);
 
     await page.mouse.wheel(0, 5000);
     await page.waitForTimeout(4000);
@@ -312,7 +307,7 @@ export async function scrapeTikTokLive(keyword) {
   });
 
   const popupClosed = await closeLoginPopup(page);
-  const liveTabClicked = await clickLiveTab(page);
+  const liveTabClicked = await forceLiveSearch(page, keyword);
 
   await page.mouse.wheel(0, 8000);
   await page.waitForTimeout(8000);
@@ -322,6 +317,10 @@ export async function scrapeTikTokLive(keyword) {
   });
 
   const pageDiagnostics = await page.evaluate(extractTikTokPage);
+  const screenshot = await page.screenshot({
+    fullPage: true,
+    type: 'png'
+  });
 
   await browser.close();
 
@@ -334,6 +333,7 @@ export async function scrapeTikTokLive(keyword) {
     jsonResponses,
     discoveredCount: discovered.length,
     discovered: discovered.slice(0, 40),
-    pageDiagnostics
+    pageDiagnostics,
+    screenshotBase64: screenshot.toString('base64')
   };
 }
