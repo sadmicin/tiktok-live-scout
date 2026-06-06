@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { scrapeTikTokLive } from './scraper.js';
+import { commitJsonToGitHub } from './githubLogger.js';
 
 const keywords = ['push', 'battle', 'gaming'];
 
@@ -21,6 +22,15 @@ fs.mkdirSync('output', { recursive: true });
 fs.writeFileSync(
   'output/latest.json',
   JSON.stringify(allResults, null, 2)
+);
+
+await commitJsonToGitHub(
+  'logs/latest.json',
+  {
+    created_at: new Date().toISOString(),
+    results: allResults
+  },
+  'Update latest scraper log'
 );
 
 console.log(`💾 Saved ${allResults.length} keyword results`);
