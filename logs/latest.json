@@ -1,36 +1,16 @@
 {
-  "created_at": "2026-06-06T04:39:37.153Z",
-  "commit": "f2249cdd0c9663755a1d2cfdbe72e3ad13068af8",
+  "created_at": "2026-06-06T04:40:54.656Z",
+  "commit": "193ba6cf34e55d876cade581f9f26506fa6556e9",
   "results": [
     {
       "keyword": "battle",
-      "collected_at": "2026-06-06T04:39:37.151Z",
-      "requestsSeen": 319,
-      "jsonResponses": 78,
-      "discoveredCount": 40,
+      "collected_at": "2026-06-06T04:40:54.656Z",
+      "requestsSeen": 305,
+      "jsonResponses": 74,
+      "discoveredCount": 42,
       "discovered": [
         {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/user/webid",
+          "url": "https://mcs.tiktokv.us/v1/user/webid",
           "size": 58,
           "keys": [
             "e",
@@ -43,10 +23,62 @@
           "url": "https://www.tiktok.com/tiktok/popup/dispatch/v1",
           "size": 187,
           "keys": [
-            "log_pb",
-            "status_code",
             "status_msg",
-            "extra"
+            "extra",
+            "log_pb",
+            "status_code"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://libraweb.tiktokw.us/service/2/abtest_config/",
+          "size": 5679,
+          "keys": [
+            "data",
+            "message"
+          ],
+          "hints": [
+            "user",
+            "live"
+          ]
+        },
+        {
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
           ],
           "hints": []
         },
@@ -81,17 +113,7 @@
           "hints": []
         },
         {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
+          "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -111,112 +133,6 @@
           "hints": []
         },
         {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://www.tiktok.com/api/v1/web-cookie-privacy/config",
-          "size": 3179,
-          "keys": [
-            "statusCode",
-            "body"
-          ],
-          "hints": [
-            "user"
-          ]
-        },
-        {
-          "url": "https://starling-ttp2.tiktokv.us/check_and_get_text/5dc26cf008d511e9b571e1bc0c9e23b5/normal/WebApp_Login",
-          "size": 124569,
-          "keys": [
-            "message",
-            "status"
-          ],
-          "hints": [
-            "user",
-            "room",
-            "live"
-          ]
-        },
-        {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/user/webid",
-          "size": 58,
-          "keys": [
-            "e",
-            "ssid",
-            "web_id"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://starling-ttp2.tiktokv.us/check_and_get_text/2e1fcc60aeaa11e99ef535aeebd27c9b/normal/account_server",
-          "size": 16421,
-          "keys": [
-            "message",
-            "status"
-          ],
-          "hints": [
-            "user",
-            "live"
-          ]
-        },
-        {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
           "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
@@ -237,7 +153,7 @@
           "hints": []
         },
         {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
+          "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -256,16 +172,43 @@
           "hints": []
         },
         {
-          "url": "https://mssdk-ttp2.tiktokw.us/web/resource",
-          "size": 491,
+          "url": "https://starling.tiktokv.us/check_and_get_text/5dc26cf008d511e9b571e1bc0c9e23b5/normal/WebApp_Login",
+          "size": 124569,
           "keys": [
-            "code",
-            "content"
+            "message",
+            "status"
           ],
-          "hints": []
+          "hints": [
+            "user",
+            "room",
+            "live"
+          ]
         },
         {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
+          "url": "https://www.tiktok.com/api/v1/web-cookie-privacy/config",
+          "size": 3178,
+          "keys": [
+            "statusCode",
+            "body"
+          ],
+          "hints": [
+            "user"
+          ]
+        },
+        {
+          "url": "https://starling.tiktokv.us/check_and_get_text/2e1fcc60aeaa11e99ef535aeebd27c9b/normal/account_server",
+          "size": 16421,
+          "keys": [
+            "message",
+            "status"
+          ],
+          "hints": [
+            "user",
+            "live"
+          ]
+        },
+        {
+          "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -287,7 +230,67 @@
           ]
         },
         {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/user/webid",
+          "size": 58,
+          "keys": [
+            "e",
+            "ssid",
+            "web_id"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/user/webid",
+          "size": 58,
+          "keys": [
+            "e",
+            "ssid",
+            "web_id"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -307,17 +310,16 @@
           "hints": []
         },
         {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
-          "size": 21,
+          "url": "https://mssdk.tiktokw.us/web/resource",
+          "size": 491,
           "keys": [
-            "e",
-            "sc",
-            "tc"
+            "code",
+            "content"
           ],
           "hints": []
         },
         {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
+          "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -350,16 +352,6 @@
         },
         {
           "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 23,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokv.us/v1/list",
           "size": 7,
           "keys": [
             "e"
@@ -368,7 +360,7 @@
         },
         {
           "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
+          "size": 23,
           "keys": [
             "e",
             "sc",
@@ -385,7 +377,7 @@
           "hints": []
         },
         {
-          "url": "https://mcs.tiktokv.us/v1/list",
+          "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -415,7 +407,17 @@
           "hints": []
         },
         {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
           "size": 21,
           "keys": [
             "e",
