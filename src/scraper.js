@@ -1,17 +1,66 @@
+import fs from 'fs';
+import path from 'path';
 import { chromium } from 'playwright';
 
-const TIKTOK_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const STORAGE_STATE_PATH = path.join(
+  process.cwd(),
+  'output',
+  'tiktok-guest-state.json'
+);
+
+const TIKTOK_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+  '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+function hasGuestState() {
+  return fs.existsSync(STORAGE_STATE_PATH);
+}
 
 async function newTikTokPage(browser) {
+  fs.mkdirSync('output', { recursive: true });
+
   const context = await browser.newContext({
-    viewport: { width: 1365, height: 900 },
+    viewport: {
+      width: 1365,
+      height: 900
+    },
     userAgent: TIKTOK_USER_AGENT,
     locale: 'en-US',
-    timezoneId: 'America/New_York'
+    timezoneId: 'America/New_York',
+    ...(hasGuestState()
+      ? {
+          storageState: STORAGE_STATE_PATH
+        }
+      : {})
   });
 
+  if (!hasGuestState()) {
+    console.log('Creating TikTok guest session...');
+
+    const warmup = await context.newPage();
+
+    await warmup.goto('https://www.tiktok.com/', {
+      waitUntil: 'networkidle',
+      timeout: 60000
+    });
+
+    await warmup.waitForTimeout(10000);
+
+    await context.storageState({
+      path: STORAGE_STATE_PATH
+    });
+
+    console.log('Saved TikTok guest session:', STORAGE_STATE_PATH);
+
+    await warmup.close();
+  }
+
   const page = await context.newPage();
-  return { context, page };
+
+  return {
+    context,
+    page
+  };
 }
 
 export async function debugTikTokPage(keyword = 'battle') {
@@ -53,9 +102,14 @@ export async function debugTikTokPage(keyword = 'battle') {
       waitUntil: 'domcontentloaded',
       timeout: 60000
     });
+
     await page.waitForTimeout(8000);
     await page.mouse.wheel(0, 5000);
     await page.waitForTimeout(4000);
+
+    await context.storageState({
+      path: STORAGE_STATE_PATH
+    });
   } catch (error) {
     gotoError = String(error?.message || error);
   }
@@ -63,10 +117,13 @@ export async function debugTikTokPage(keyword = 'battle') {
   const diagnostics = await page.evaluate(() => {
     const text = document.body?.innerText || '';
     const html = document.documentElement?.innerHTML || '';
-    const links = Array.from(document.querySelectorAll('a')).slice(0, 50).map((a) => ({
-      text: (a.innerText || '').slice(0, 120),
-      href: a.href
-    }));
+
+    const links = Array.from(document.querySelectorAll('a'))
+      .slice(0, 50)
+      .map((a) => ({
+        text: (a.innerText || '').slice(0, 120),
+        href: a.href
+      }));
 
     return {
       title: document.title,
@@ -88,7 +145,10 @@ export async function debugTikTokPage(keyword = 'battle') {
   });
 
   const cookies = await context.cookies();
-  const screenshot = await page.screenshot({ fullPage: true, type: 'png' });
+  const screenshot = await page.screenshot({
+    fullPage: true,
+    type: 'png'
+  });
 
   await browser.close();
 
@@ -97,6 +157,10 @@ export async function debugTikTokPage(keyword = 'battle') {
     keyword,
     requestedUrl: url,
     gotoError,
+    guestState: {
+      path: STORAGE_STATE_PATH,
+      exists: hasGuestState()
+    },
     browser: {
       headless: true,
       userAgent: TIKTOK_USER_AGENT,
@@ -118,7 +182,7 @@ export async function debugTikTokPage(keyword = 'battle') {
 
 export async function scrapeTikTokLive(keyword) {
   const browser = await chromium.launch({ headless: true });
-  const { page } = await newTikTokPage(browser);
+  const { context, page } = await newTikTokPage(browser);
 
   let requestsSeen = 0;
   let jsonResponses = 0;
@@ -138,7 +202,9 @@ export async function scrapeTikTokLive(keyword) {
         url.includes('monitor') ||
         url.includes('log') ||
         url.includes('analytics')
-      ) return;
+      ) {
+        return;
+      }
 
       const text = await response.text();
 
@@ -150,7 +216,17 @@ export async function scrapeTikTokLive(keyword) {
         keys = Object.keys(json).slice(0, 20);
       } catch {}
 
-      for (const word of ['user','unique_id','nickname','room','live','owner','avatar','item_list','cursor']) {
+      for (const word of [
+        'user',
+        'unique_id',
+        'nickname',
+        'room',
+        'live',
+        'owner',
+        'avatar',
+        'item_list',
+        'cursor'
+      ]) {
         if (text.includes(word)) hints.push(word);
       }
 
@@ -160,7 +236,6 @@ export async function scrapeTikTokLive(keyword) {
         keys,
         hints
       });
-
     } catch {}
   });
 
@@ -173,12 +248,19 @@ export async function scrapeTikTokLive(keyword) {
   await page.mouse.wheel(0, 8000);
   await page.waitForTimeout(8000);
 
+  await context.storageState({
+    path: STORAGE_STATE_PATH
+  });
+
   const pageDiagnostics = await page.evaluate(() => {
     const text = document.body?.innerText || '';
-    const anchors = Array.from(document.querySelectorAll('a')).slice(0, 80).map(a => ({
-      text: (a.innerText || '').slice(0, 120),
-      href: a.href
-    }));
+
+    const anchors = Array.from(document.querySelectorAll('a'))
+      .slice(0, 80)
+      .map((a) => ({
+        text: (a.innerText || '').slice(0, 120),
+        href: a.href
+      }));
 
     return {
       title: document.title,
