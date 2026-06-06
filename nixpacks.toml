@@ -1,0 +1,2 @@
+[phases.setup]
+nixPkgs = ["nodejs_22", "glib", "nss", "nspr", "atk", "cups", "dbus", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "mesa", "expat", "libdrm", "libxkbcommon", "pango", "cairo", "alsa-lib"]
