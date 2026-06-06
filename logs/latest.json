@@ -1,25 +1,14 @@
 {
-  "created_at": "2026-06-06T04:38:40.873Z",
-  "commit": "a9264de948b2d2c5c38f2a222ecd32e58d6f9c51",
+  "created_at": "2026-06-06T04:39:37.153Z",
+  "commit": "f2249cdd0c9663755a1d2cfdbe72e3ad13068af8",
   "results": [
     {
       "keyword": "battle",
-      "collected_at": "2026-06-06T04:38:40.871Z",
-      "requestsSeen": 301,
-      "jsonResponses": 70,
-      "discoveredCount": 38,
+      "collected_at": "2026-06-06T04:39:37.151Z",
+      "requestsSeen": 319,
+      "jsonResponses": 78,
+      "discoveredCount": 40,
       "discovered": [
-        {
-          "url": "https://www.tiktok.com/tiktok/popup/dispatch/v1",
-          "size": 187,
-          "keys": [
-            "status_msg",
-            "extra",
-            "log_pb",
-            "status_code"
-          ],
-          "hints": []
-        },
         {
           "url": "https://mcs-ttp2.tiktokv.us/v1/list",
           "size": 21,
@@ -51,27 +40,48 @@
           "hints": []
         },
         {
+          "url": "https://www.tiktok.com/tiktok/popup/dispatch/v1",
+          "size": 187,
+          "keys": [
+            "log_pb",
+            "status_code",
+            "status_msg",
+            "extra"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
           "url": "https://mcs-ttp2.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -145,6 +155,16 @@
           ]
         },
         {
+          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
           "url": "https://mcs.tiktokw.us/v1/user/webid",
           "size": 58,
           "keys": [
@@ -156,6 +176,16 @@
         },
         {
           "url": "https://mcs-ttp2.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -177,25 +207,6 @@
           ]
         },
         {
-          "url": "https://www.tiktokw.us/api/global-footer/graphql",
-          "size": 58735,
-          "keys": [
-            "data",
-            "extensions"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
           "url": "https://mcs-ttp2.tiktokv.us/v1/list",
           "size": 21,
           "keys": [
@@ -217,6 +228,16 @@
         },
         {
           "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -227,33 +248,10 @@
         },
         {
           "url": "https://www.tiktokw.us/api/global-footer/graphql",
-          "size": 11962,
+          "size": 58735,
           "keys": [
             "data",
             "extensions"
-          ],
-          "hints": [
-            "room",
-            "live"
-          ]
-        },
-        {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
           ],
           "hints": []
         },
@@ -275,6 +273,18 @@
             "tc"
           ],
           "hints": []
+        },
+        {
+          "url": "https://www.tiktokw.us/api/global-footer/graphql",
+          "size": 11962,
+          "keys": [
+            "data",
+            "extensions"
+          ],
+          "hints": [
+            "room",
+            "live"
+          ]
         },
         {
           "url": "https://mcs-ttp2.tiktokv.us/v1/list",
@@ -307,10 +317,12 @@
           "hints": []
         },
         {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 7,
+          "url": "https://mcs-ttp2.tiktokv.us/v1/list",
+          "size": 21,
           "keys": [
-            "e"
+            "e",
+            "sc",
+            "tc"
           ],
           "hints": []
         },
@@ -343,6 +355,14 @@
             "e",
             "sc",
             "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 7,
+          "keys": [
+            "e"
           ],
           "hints": []
         },
