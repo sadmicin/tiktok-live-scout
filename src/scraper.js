@@ -103,9 +103,21 @@ export async function debugTikTokPage(keyword = 'battle') {
       timeout: 60000
     });
 
-    await page.waitForTimeout(8000);
-    await page.mouse.wheel(0, 5000);
-    await page.waitForTimeout(4000);
+    await page.waitForTimeout(3000);
+
+try {
+  await page.locator('[aria-label="Close"]').click({
+    timeout: 5000
+  });
+
+  console.log('Closed TikTok login popup');
+} catch {
+  console.log('No login popup close button found');
+}
+
+await page.waitForTimeout(8000);
+await page.mouse.wheel(0, 5000);
+await page.waitForTimeout(4000);
 
     await context.storageState({
       path: STORAGE_STATE_PATH
@@ -244,9 +256,21 @@ export async function scrapeTikTokLive(keyword) {
     timeout: 60000
   });
 
-  await page.waitForTimeout(5000);
-  await page.mouse.wheel(0, 8000);
-  await page.waitForTimeout(8000);
+  await page.waitForTimeout(3000);
+
+try {
+  await page.locator('[aria-label="Close"]').click({
+    timeout: 5000
+  });
+
+  console.log('Closed TikTok login popup');
+} catch {
+  console.log('No login popup close button found');
+}
+
+await page.waitForTimeout(5000);
+await page.mouse.wheel(0, 8000);
+await page.waitForTimeout(8000);
 
   await context.storageState({
     path: STORAGE_STATE_PATH
