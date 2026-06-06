@@ -1,6 +1,6 @@
 import express from 'express';
 import fs from 'fs';
-import { scrapeTikTokLive } from './scraper.js';
+import { scrapeTikTokLive, debugTikTokPage } from './scraper.js';
 import { commitJsonToGitHub } from './githubLogger.js';
 
 const keywords = ['battle'];
@@ -8,6 +8,7 @@ const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT_
 const port = process.env.PORT || 3000;
 
 let latestRun = null;
+let latestDebug = null;
 let isRunning = false;
 
 async function runScrape() {
@@ -75,6 +76,20 @@ app.get('/run', async (_req, res) => {
 
 app.get('/latest', (_req, res) => {
   res.json(latestRun || { status: 'no run yet', commit: commitHash });
+});
+
+app.get('/debug-page', async (_req, res) => {
+  latestDebug = await debugTikTokPage('battle');
+  const { screenshotBase64, ...json } = latestDebug;
+  res.json(json);
+});
+
+app.get('/debug-screenshot', (_req, res) => {
+  if (!latestDebug?.screenshotBase64) {
+    return res.status(404).send('Run /debug-page first');
+  }
+
+  res.type('png').send(Buffer.from(latestDebug.screenshotBase64, 'base64'));
 });
 
 app.listen(port, () => {
