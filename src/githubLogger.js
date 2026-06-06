@@ -33,6 +33,10 @@ async function githubRequest(url, options = {}) {
   return body;
 }
 
+function getLogBranch() {
+  return process.env.GITHUB_LOG_BRANCH || process.env.GITHUB_BRANCH || 'main';
+}
+
 async function getExistingFileSha(repo, path, branch) {
   const url = `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path).replaceAll('%2F', '/')}?ref=${encodeURIComponent(branch)}`;
 
@@ -49,7 +53,7 @@ async function getExistingFileSha(repo, path, branch) {
 
 export async function commitJsonToGitHub(path, data, message) {
   const repo = process.env.GITHUB_REPO || 'sadmicin/tiktok-live-scout';
-  const branch = process.env.GITHUB_BRANCH || 'main';
+  const branch = getLogBranch();
   const token = process.env.GITHUB_TOKEN;
 
   if (!token) {
@@ -75,5 +79,13 @@ export async function commitJsonToGitHub(path, data, message) {
     })
   });
 
-  return result?.commit?.sha || null;
+  const commitSha = result?.commit?.sha || null;
+  console.log(`📝 GitHub log updated: ${repo}/${path} on ${branch} @ ${commitSha || 'unknown'}`);
+
+  return {
+    repo,
+    branch,
+    path,
+    commitSha
+  };
 }
