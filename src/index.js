@@ -1,7 +1,7 @@
 import express from 'express';
 import fs from 'fs';
 import { scrapeTikTokLive, debugTikTokPage } from './scraper.js';
-import { commitJsonToGitHub } from './githubLogger.js';
+import { commitJsonToGitHub, commitImageToGitHub } from './githubLogger.js';
 
 const keywords = ['battle'];
 const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || 'unknown';
@@ -11,24 +11,35 @@ let latestRun = null;
 let latestDebug = null;
 let isRunning = false;
 
-async function runScrape() {
-  if (isRunning) {
-    console.log('⏭️ Scrape already running; skipping duplicate trigger');
-    return latestRun;
+function stamp() {
+  return new Date().toISOString().replaceAll(':','-').replaceAll('.','-');
+}
+
+async function saveRunArtifacts(data, screenshotBase64) {
+  const id = stamp();
+
+  await commitJsonToGitHub('logs/latest.json', data, 'Update latest scraper JSON');
+  await commitJsonToGitHub(`logs/runs/${id}/data.json`, data, 'Archive scraper JSON');
+
+  if (screenshotBase64) {
+    await commitImageToGitHub('logs/latest.png', screenshotBase64, 'Update latest scraper screenshot');
+    await commitImageToGitHub(`logs/runs/${id}/screenshot.png`, screenshotBase64, 'Archive scraper screenshot');
   }
+}
+
+async function runScrape() {
+  if (isRunning) return latestRun;
 
   isRunning = true;
-  console.log('🚀 TikTok Live Scout starting');
-  console.log(`🔖 Commit: ${commitHash}`);
 
   try {
     const allResults = [];
+    let screenshotBase64 = null;
 
     for (const keyword of keywords) {
-      console.log(`🔎 Starting keyword: ${keyword}`);
-      const results = await scrapeTikTokLive(keyword);
-      console.log(`✅ ${keyword}: collected`);
-      allResults.push(results);
+      const result = await scrapeTikTokLive(keyword);
+      allResults.push(result);
+      screenshotBase64 = result.screenshotBase64 || null;
     }
 
     latestRun = {
@@ -40,13 +51,10 @@ async function runScrape() {
     fs.mkdirSync('output', { recursive: true });
     fs.writeFileSync('output/latest.json', JSON.stringify(latestRun, null, 2));
 
-    await commitJsonToGitHub('logs/latest.json', latestRun, 'Update latest scraper log');
+    await saveRunArtifacts(latestRun, screenshotBase64);
 
-    console.log(`💾 Saved ${allResults.length} keyword results`);
-    console.log('DONE');
     return latestRun;
   } catch (error) {
-    console.error('❌ Scrape failed:', error);
     latestRun = {
       created_at: new Date().toISOString(),
       commit: commitHash,
@@ -61,38 +69,28 @@ async function runScrape() {
 const app = express();
 
 app.get('/', (_req, res) => {
-  res.json({
-    status: 'ok',
-    commit: commitHash,
-    latestRunAt: latestRun?.created_at || null,
-    isRunning
-  });
+  res.json({ status:'ok', commit:commitHash, latestRunAt: latestRun?.created_at || null, isRunning });
 });
 
-app.get('/run', async (_req, res) => {
-  const result = await runScrape();
-  res.json(result);
-});
+app.get('/run', async (_req, res) => res.json(await runScrape()));
 
-app.get('/latest', (_req, res) => {
-  res.json(latestRun || { status: 'no run yet', commit: commitHash });
-});
+app.get('/latest', (_req, res) => res.json(latestRun || {status:'no run yet'}));
 
 app.get('/debug-page', async (_req, res) => {
   latestDebug = await debugTikTokPage('battle');
+
+  await saveRunArtifacts(latestDebug, latestDebug.screenshotBase64);
+
   const { screenshotBase64, ...json } = latestDebug;
   res.json(json);
 });
 
-app.get('/debug-screenshot', (_req, res) => {
-  if (!latestDebug?.screenshotBase64) {
-    return res.status(404).send('Run /debug-page first');
-  }
-
-  res.type('png').send(Buffer.from(latestDebug.screenshotBase64, 'base64'));
+app.get('/debug-screenshot', (_req,res)=>{
+  if (!latestDebug?.screenshotBase64) return res.status(404).send('Run debug first');
+  res.type('png').send(Buffer.from(latestDebug.screenshotBase64,'base64'));
 });
 
-app.listen(port, () => {
-  console.log(`🌐 Server listening on port ${port}`);
+app.listen(port,()=>{
+  console.log(`Server listening ${port}`);
   runScrape();
 });
