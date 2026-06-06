@@ -1,34 +1,21 @@
 {
-  "created_at": "2026-06-06T04:37:04.489Z",
-  "commit": "e1144e1eeb26f5e65119c3a1269b7c06aaaa9a7c",
+  "created_at": "2026-06-06T04:37:46.014Z",
+  "commit": "a3e35283c0d2119b86f6f338c47bef8ad4b16396",
   "results": [
     {
       "keyword": "battle",
-      "collected_at": "2026-06-06T04:37:04.482Z",
-      "requestsSeen": 306,
-      "jsonResponses": 78,
-      "discoveredCount": 40,
+      "collected_at": "2026-06-06T04:37:46.008Z",
+      "requestsSeen": 305,
+      "jsonResponses": 74,
+      "discoveredCount": 39,
       "discovered": [
         {
-          "url": "https://libraweb.tiktokw.us/service/2/abtest_config/",
-          "size": 5679,
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
           "keys": [
-            "data",
-            "message"
-          ],
-          "hints": [
-            "user",
-            "live"
-          ]
-        },
-        {
-          "url": "https://www.tiktok.com/tiktok/popup/dispatch/v1",
-          "size": 187,
-          "keys": [
-            "log_pb",
-            "status_code",
-            "status_msg",
-            "extra"
+            "e",
+            "sc",
+            "tc"
           ],
           "hints": []
         },
@@ -53,6 +40,39 @@
           "hints": []
         },
         {
+          "url": "https://libraweb.tiktokw.us/service/2/abtest_config/",
+          "size": 5679,
+          "keys": [
+            "data",
+            "message"
+          ],
+          "hints": [
+            "user",
+            "live"
+          ]
+        },
+        {
+          "url": "https://www.tiktok.com/tiktok/popup/dispatch/v1",
+          "size": 187,
+          "keys": [
+            "status_code",
+            "status_msg",
+            "extra",
+            "log_pb"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
           "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
@@ -73,16 +93,6 @@
           "hints": []
         },
         {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
           "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
@@ -93,12 +103,12 @@
           "hints": []
         },
         {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
+          "url": "https://www.tiktok.com/ttwid/check/",
+          "size": 63,
           "keys": [
-            "e",
-            "sc",
-            "tc"
+            "status_code",
+            "message",
+            "sub_status_code"
           ],
           "hints": []
         },
@@ -132,26 +142,6 @@
           "hints": []
         },
         {
-          "url": "https://www.tiktok.com/api/v1/web-cookie-privacy/config",
-          "size": 3178,
-          "keys": [
-            "statusCode",
-            "body"
-          ],
-          "hints": [
-            "user"
-          ]
-        },
-        {
-          "url": "https://mssdk.tiktokw.us/web/resource",
-          "size": 491,
-          "keys": [
-            "code",
-            "content"
-          ],
-          "hints": []
-        },
-        {
           "url": "https://starling.tiktokv.us/check_and_get_text/2e1fcc60aeaa11e99ef535aeebd27c9b/normal/account_server",
           "size": 16421,
           "keys": [
@@ -162,26 +152,6 @@
             "user",
             "live"
           ]
-        },
-        {
-          "url": "https://www.tiktok.com/ttwid/check/",
-          "size": 63,
-          "keys": [
-            "status_code",
-            "message",
-            "sub_status_code"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokv.us/v1/user/webid",
-          "size": 58,
-          "keys": [
-            "e",
-            "ssid",
-            "web_id"
-          ],
-          "hints": []
         },
         {
           "url": "https://www.tiktokw.us/api/global-footer/graphql",
@@ -209,12 +179,32 @@
           ]
         },
         {
-          "url": "https://mcs.tiktokv.us/v1/list",
+          "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
             "e",
             "sc",
             "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://www.tiktok.com/api/v1/web-cookie-privacy/config",
+          "size": 3178,
+          "keys": [
+            "statusCode",
+            "body"
+          ],
+          "hints": [
+            "user"
+          ]
+        },
+        {
+          "url": "https://mssdk.tiktokw.us/web/resource",
+          "size": 491,
+          "keys": [
+            "code",
+            "content"
           ],
           "hints": []
         },
@@ -229,6 +219,26 @@
           "hints": []
         },
         {
+          "url": "https://mcs.tiktokv.us/v1/user/webid",
+          "size": 58,
+          "keys": [
+            "e",
+            "ssid",
+            "web_id"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/user/webid",
+          "size": 58,
+          "keys": [
+            "e",
+            "ssid",
+            "web_id"
+          ],
+          "hints": []
+        },
+        {
           "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
@@ -249,7 +259,7 @@
           "hints": []
         },
         {
-          "url": "https://mcs.tiktokw.us/v1/list",
+          "url": "https://mcs.tiktokv.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -259,7 +269,7 @@
           "hints": []
         },
         {
-          "url": "https://mcs.tiktokv.us/v1/list",
+          "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -275,6 +285,56 @@
             "provider_urls",
             "accounts_endpoint",
             "login_url"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://accounts.google.com/gsi/fedcm.json",
+          "size": 1386,
+          "keys": [
+            "idtoken_endpoint",
+            "id_token_endpoint",
+            "id_assertion_endpoint",
+            "metrics_endpoint",
+            "accounts_endpoint",
+            "client_metadata_endpoint",
+            "client_id_metadata_endpoint",
+            "signin_url",
+            "login_url",
+            "revocation_endpoint",
+            "disconnect_endpoint",
+            "supports_add_account",
+            "supports_use_other_account",
+            "modes",
+            "branding"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://accounts.google.com/gsi/fedcm/listaccounts",
+          "size": 15,
+          "keys": [
+            "accounts"
           ],
           "hints": []
         },
@@ -317,76 +377,6 @@
           "hints": []
         },
         {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://accounts.google.com/gsi/fedcm.json",
-          "size": 1386,
-          "keys": [
-            "idtoken_endpoint",
-            "id_token_endpoint",
-            "id_assertion_endpoint",
-            "metrics_endpoint",
-            "accounts_endpoint",
-            "client_metadata_endpoint",
-            "client_id_metadata_endpoint",
-            "signin_url",
-            "login_url",
-            "revocation_endpoint",
-            "disconnect_endpoint",
-            "supports_add_account",
-            "supports_use_other_account",
-            "modes",
-            "branding"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://accounts.google.com/gsi/fedcm/listaccounts",
-          "size": 15,
-          "keys": [
-            "accounts"
-          ],
-          "hints": []
-        },
-        {
           "url": "https://mcs.tiktokv.us/v1/list",
           "size": 21,
           "keys": [
@@ -407,7 +397,7 @@
           "hints": []
         },
         {
-          "url": "https://mcs.tiktokw.us/v1/list",
+          "url": "https://mcs.tiktokv.us/v1/list",
           "size": 21,
           "keys": [
             "e",
