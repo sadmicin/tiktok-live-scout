@@ -12,8 +12,89 @@ const TIKTOK_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
+const LIVE_HINT_WORDS = [
+  'user',
+  'unique_id',
+  'uniqueId',
+  'nickname',
+  'room',
+  'room_id',
+  'roomId',
+  'live',
+  'owner',
+  'avatar',
+  'viewer',
+  'viewers',
+  'follow',
+  'item_list',
+  'cursor'
+];
+
 function hasGuestState() {
   return fs.existsSync(STORAGE_STATE_PATH);
+}
+
+function safePreview(value) {
+  try {
+    return JSON.parse(JSON.stringify(value)).slice?.(0, 1) || value;
+  } catch {
+    return null;
+  }
+}
+
+function compactObject(value, depth = 0) {
+  if (value === null || typeof value !== 'object') return value;
+  if (depth > 3) return Array.isArray(value) ? `[array:${value.length}]` : '[object]';
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 3).map((item) => compactObject(item, depth + 1));
+  }
+
+  const output = {};
+  for (const [key, val] of Object.entries(value).slice(0, 30)) {
+    output[key] = compactObject(val, depth + 1);
+  }
+  return output;
+}
+
+function collectLiveCandidates(value, pathName = '$', matches = []) {
+  if (!value || typeof value !== 'object' || matches.length >= 50) return matches;
+
+  if (Array.isArray(value)) {
+    value.slice(0, 60).forEach((item, index) => {
+      collectLiveCandidates(item, `${pathName}[${index}]`, matches);
+    });
+    return matches;
+  }
+
+  const keys = Object.keys(value);
+  const joinedKeys = keys.join(' ').toLowerCase();
+  const jsonText = JSON.stringify(value).slice(0, 6000).toLowerCase();
+
+  const looksUseful =
+    /(unique_id|uniqueid|nickname|avatar|room_id|roomid|owner|viewer|live)/i.test(joinedKeys) ||
+    /(unique_id|uniqueid|nickname|avatar|room_id|roomid|owner|viewer|live)/i.test(jsonText);
+
+  if (looksUseful) {
+    matches.push({
+      path: pathName,
+      signals: {
+        hasUniqueId: /(unique_id|uniqueId)/.test(JSON.stringify(value).slice(0, 6000)),
+        hasNickname: /nickname/.test(JSON.stringify(value).slice(0, 6000)),
+        hasAvatar: /avatar/.test(JSON.stringify(value).slice(0, 6000)),
+        hasRoom: /(room_id|roomId|room)/.test(JSON.stringify(value).slice(0, 6000)),
+        hasViewer: /(viewer|viewers|user_count|audience)/i.test(JSON.stringify(value).slice(0, 6000)),
+        hasLive: /live/i.test(JSON.stringify(value).slice(0, 6000))
+      },
+      sample: compactObject(value)
+    });
+  }
+
+  for (const [key, val] of Object.entries(value).slice(0, 80)) {
+    collectLiveCandidates(val, `${pathName}.${key}`, matches);
+  }
+
+  return matches;
 }
 
 async function newTikTokPage(browser) {
@@ -149,6 +230,64 @@ function extractTikTokPage() {
   };
 }
 
+function analyzeJsonResponse(url, text) {
+  let json = null;
+  let keys = [];
+  let hints = [];
+  let liveCandidates = [];
+
+  try {
+    json = JSON.parse(text);
+    keys = Object.keys(json).slice(0, 30);
+  } catch {}
+
+  for (const word of LIVE_HINT_WORDS) {
+    if (text.includes(word)) hints.push(word);
+  }
+
+  if (json && hints.length) {
+    liveCandidates = collectLiveCandidates(json).slice(0, 12);
+  }
+
+  return {
+    url: url.split('?')[0],
+    size: text.length,
+    keys,
+    hints,
+    candidateCount: liveCandidates.length,
+    liveCandidates
+  };
+}
+
+function attachResponseCapture(page, discovered, counters) {
+  page.on('response', async (response) => {
+    try {
+      counters.requestsSeen++;
+
+      const url = response.url();
+      const type = response.headers()['content-type'] || '';
+
+      if (!type.includes('json')) return;
+      counters.jsonResponses++;
+
+      if (
+        url.includes('monitor') ||
+        url.includes('log') ||
+        url.includes('analytics')
+      ) {
+        return;
+      }
+
+      const text = await response.text();
+      const analyzed = analyzeJsonResponse(url, text);
+
+      if (analyzed.hints.length || analyzed.candidateCount) {
+        discovered.push(analyzed);
+      }
+    } catch {}
+  });
+}
+
 export async function debugTikTokPage(keyword = 'battle') {
   const browser = await chromium.launch({ headless: true });
   const { context, page } = await newTikTokPage(browser);
@@ -156,6 +295,10 @@ export async function debugTikTokPage(keyword = 'battle') {
   const url = `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}`;
   const responses = [];
   const requestFailures = [];
+  const discovered = [];
+  const counters = { requestsSeen: 0, jsonResponses: 0 };
+
+  attachResponseCapture(page, discovered, counters);
 
   page.on('response', async (response) => {
     const responseUrl = response.url();
@@ -221,6 +364,10 @@ export async function debugTikTokPage(keyword = 'battle') {
     gotoError,
     popupClosed,
     liveTabClicked,
+    requestsSeen: counters.requestsSeen,
+    jsonResponses: counters.jsonResponses,
+    discoveredCount: discovered.length,
+    discovered: discovered.slice(0, 25),
     guestState: {
       path: STORAGE_STATE_PATH,
       exists: hasGuestState()
@@ -248,60 +395,9 @@ export async function scrapeTikTokLive(keyword) {
   const browser = await chromium.launch({ headless: true });
   const { context, page } = await newTikTokPage(browser);
 
-  let requestsSeen = 0;
-  let jsonResponses = 0;
+  const counters = { requestsSeen: 0, jsonResponses: 0 };
   const discovered = [];
-
-  page.on('response', async (response) => {
-    try {
-      requestsSeen++;
-
-      const url = response.url();
-      const type = response.headers()['content-type'] || '';
-
-      if (!type.includes('json')) return;
-      jsonResponses++;
-
-      if (
-        url.includes('monitor') ||
-        url.includes('log') ||
-        url.includes('analytics')
-      ) {
-        return;
-      }
-
-      const text = await response.text();
-
-      let keys = [];
-      let hints = [];
-
-      try {
-        const json = JSON.parse(text);
-        keys = Object.keys(json).slice(0, 20);
-      } catch {}
-
-      for (const word of [
-        'user',
-        'unique_id',
-        'nickname',
-        'room',
-        'live',
-        'owner',
-        'avatar',
-        'item_list',
-        'cursor'
-      ]) {
-        if (text.includes(word)) hints.push(word);
-      }
-
-      discovered.push({
-        url: url.split('?')[0],
-        size: text.length,
-        keys,
-        hints
-      });
-    } catch {}
-  });
+  attachResponseCapture(page, discovered, counters);
 
   await page.goto(`https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}`, {
     waitUntil: 'domcontentloaded',
@@ -331,10 +427,10 @@ export async function scrapeTikTokLive(keyword) {
     collected_at: new Date().toISOString(),
     popupClosed,
     liveTabClicked,
-    requestsSeen,
-    jsonResponses,
+    requestsSeen: counters.requestsSeen,
+    jsonResponses: counters.jsonResponses,
     discoveredCount: discovered.length,
-    discovered: discovered.slice(0, 40),
+    discovered: discovered.slice(0, 25),
     pageDiagnostics,
     screenshotBase64: screenshot.toString('base64')
   };
