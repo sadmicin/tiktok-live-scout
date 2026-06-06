@@ -4,9 +4,7 @@ function encodeBase64Utf8(text) {
 
 async function githubRequest(url, options = {}) {
   const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    throw new Error('Missing GITHUB_TOKEN');
-  }
+  if (!token) throw new Error('Missing GITHUB_TOKEN');
 
   const response = await fetch(url, {
     ...options,
@@ -19,15 +17,10 @@ async function githubRequest(url, options = {}) {
   });
 
   const text = await response.text();
-  let body = null;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    body = text;
-  }
+  const body = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    throw new Error(`GitHub API ${response.status}: ${typeof body === 'string' ? body : JSON.stringify(body)}`);
+    throw new Error(`GitHub API ${response.status}: ${text}`);
   }
 
   return body;
@@ -38,54 +31,55 @@ function getLogBranch() {
 }
 
 async function getExistingFileSha(repo, path, branch) {
-  const url = `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path).replaceAll('%2F', '/')}?ref=${encodeURIComponent(branch)}`;
+  const url = `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path).replaceAll('%2F','/')}?ref=${branch}`;
 
   try {
     const file = await githubRequest(url);
     return file.sha;
-  } catch (error) {
-    if (String(error.message).includes('GitHub API 404')) {
-      return null;
-    }
-    throw error;
+  } catch (e) {
+    if (String(e.message).includes('404')) return null;
+    throw e;
   }
 }
 
-export async function commitJsonToGitHub(path, data, message) {
+async function commitFile(path, content, message, alreadyBase64 = false) {
   const repo = process.env.GITHUB_REPO || 'sadmicin/tiktok-live-scout';
   const branch = getLogBranch();
-  const token = process.env.GITHUB_TOKEN;
 
-  if (!token) {
-    console.log('ℹ️ GITHUB_TOKEN not set; skipping GitHub log commit');
+  if (!process.env.GITHUB_TOKEN) {
+    console.log('Skipping GitHub commit - no token');
     return null;
   }
 
-  const content = JSON.stringify(data, null, 2);
   const sha = await getExistingFileSha(repo, path, branch);
 
-  const url = `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path).replaceAll('%2F', '/')}`;
+  const url = `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path).replaceAll('%2F','/')}`;
 
-  const result = await githubRequest(url, {
+  return githubRequest(url, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       message,
-      content: encodeBase64Utf8(content),
+      content: alreadyBase64 ? content : encodeBase64Utf8(content),
       branch,
       ...(sha ? { sha } : {})
     })
   });
+}
 
-  const commitSha = result?.commit?.sha || null;
-  console.log(`📝 GitHub log updated: ${repo}/${path} on ${branch} @ ${commitSha || 'unknown'}`);
-
-  return {
-    repo,
-    branch,
+export async function commitJsonToGitHub(path, data, message) {
+  return commitFile(
     path,
-    commitSha
-  };
+    JSON.stringify(data, null, 2),
+    message
+  );
+}
+
+export async function commitImageToGitHub(path, base64, message) {
+  return commitFile(
+    path,
+    base64,
+    message,
+    true
+  );
 }
