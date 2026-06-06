@@ -1,26 +1,14 @@
 {
-  "created_at": "2026-06-06T04:43:05.712Z",
-  "commit": "ca5ce8b850e169e63ed43a4cd2a55979791fbbbc",
+  "created_at": "2026-06-06T05:09:47.402Z",
+  "commit": "8f28f9c69f4baf5dd5bd1dcd79e16121b1775ab3",
   "results": [
     {
       "keyword": "battle",
-      "collected_at": "2026-06-06T04:43:05.711Z",
-      "requestsSeen": 320,
-      "jsonResponses": 78,
-      "discoveredCount": 41,
+      "collected_at": "2026-06-06T05:09:47.401Z",
+      "requestsSeen": 299,
+      "jsonResponses": 69,
+      "discoveredCount": 34,
       "discovered": [
-        {
-          "url": "https://libraweb.tiktokw.us/service/2/abtest_config/",
-          "size": 5679,
-          "keys": [
-            "data",
-            "message"
-          ],
-          "hints": [
-            "user",
-            "live"
-          ]
-        },
         {
           "url": "https://www.tiktok.com/tiktok/popup/dispatch/v1",
           "size": 187,
@@ -43,14 +31,16 @@
           "hints": []
         },
         {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
+          "url": "https://libraweb.tiktokw.us/service/2/abtest_config/",
+          "size": 5679,
           "keys": [
-            "e",
-            "sc",
-            "tc"
+            "data",
+            "message"
           ],
-          "hints": []
+          "hints": [
+            "user",
+            "live"
+          ]
         },
         {
           "url": "https://mcs.tiktokv.us/v1/user/webid",
@@ -63,6 +53,16 @@
           "hints": []
         },
         {
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
           "url": "https://mcs.tiktokv.us/v1/list",
           "size": 21,
           "keys": [
@@ -74,6 +74,16 @@
         },
         {
           "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokw.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -133,37 +143,6 @@
           "hints": []
         },
         {
-          "url": "https://www.tiktok.com/api/v1/web-cookie-privacy/config",
-          "size": 3178,
-          "keys": [
-            "statusCode",
-            "body"
-          ],
-          "hints": [
-            "user"
-          ]
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokv.us/v1/user/webid",
-          "size": 58,
-          "keys": [
-            "e",
-            "ssid",
-            "web_id"
-          ],
-          "hints": []
-        },
-        {
           "url": "https://starling.tiktokv.us/check_and_get_text/5dc26cf008d511e9b571e1bc0c9e23b5/normal/WebApp_Login",
           "size": 124569,
           "keys": [
@@ -175,35 +154,6 @@
             "room",
             "live"
           ]
-        },
-        {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://www.tiktokw.us/api/global-footer/graphql",
-          "size": 58735,
-          "keys": [
-            "data",
-            "extensions"
-          ],
-          "hints": []
         },
         {
           "url": "https://starling.tiktokv.us/check_and_get_text/2e1fcc60aeaa11e99ef535aeebd27c9b/normal/account_server",
@@ -218,36 +168,13 @@
           ]
         },
         {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
           "url": "https://www.tiktokw.us/api/global-footer/graphql",
-          "size": 11962,
+          "size": 58735,
           "keys": [
             "data",
             "extensions"
           ],
-          "hints": [
-            "room",
-            "live"
-          ]
+          "hints": []
         },
         {
           "url": "https://mssdk.tiktokw.us/web/resource",
@@ -269,7 +196,60 @@
           "hints": []
         },
         {
+          "url": "https://www.tiktok.com/api/v1/web-cookie-privacy/config",
+          "size": 3178,
+          "keys": [
+            "statusCode",
+            "body"
+          ],
+          "hints": [
+            "user"
+          ]
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/user/webid",
+          "size": 58,
+          "keys": [
+            "e",
+            "ssid",
+            "web_id"
+          ],
+          "hints": []
+        },
+        {
           "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://www.tiktokw.us/api/global-footer/graphql",
+          "size": 11962,
+          "keys": [
+            "data",
+            "extensions"
+          ],
+          "hints": [
+            "room",
+            "live"
+          ]
+        },
+        {
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -289,7 +269,7 @@
           "hints": []
         },
         {
-          "url": "https://mcs.tiktokw.us/v1/list",
+          "url": "https://mcs.tiktokv.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -299,49 +279,7 @@
           "hints": []
         },
         {
-          "url": "https://google.com/.well-known/web-identity",
-          "size": 218,
-          "keys": [
-            "provider_urls",
-            "accounts_endpoint",
-            "login_url"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://accounts.google.com/gsi/fedcm.json",
-          "size": 1386,
-          "keys": [
-            "idtoken_endpoint",
-            "id_token_endpoint",
-            "id_assertion_endpoint",
-            "metrics_endpoint",
-            "accounts_endpoint",
-            "client_metadata_endpoint",
-            "client_id_metadata_endpoint",
-            "signin_url",
-            "login_url",
-            "revocation_endpoint",
-            "disconnect_endpoint",
-            "supports_add_account",
-            "supports_use_other_account",
-            "modes",
-            "branding"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokw.us/v1/list",
+          "url": "https://mcs.tiktokv.us/v1/list",
           "size": 21,
           "keys": [
             "e",
@@ -359,10 +297,52 @@
           "hints": []
         },
         {
-          "url": "https://accounts.google.com/gsi/fedcm/listaccounts",
-          "size": 15,
+          "url": "https://mcs.tiktokw.us/v1/list",
+          "size": 21,
           "keys": [
-            "accounts"
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
+          ],
+          "hints": []
+        },
+        {
+          "url": "https://mcs.tiktokv.us/v1/list",
+          "size": 21,
+          "keys": [
+            "e",
+            "sc",
+            "tc"
           ],
           "hints": []
         },
@@ -375,58 +355,65 @@
             "tc"
           ],
           "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 23,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
-        },
-        {
-          "url": "https://mcs.tiktokv.us/v1/list",
-          "size": 21,
-          "keys": [
-            "e",
-            "sc",
-            "tc"
-          ],
-          "hints": []
         }
-      ]
+      ],
+      "pageDiagnostics": {
+        "title": "Log in | TikTok",
+        "url": "https://www.tiktok.com/search/live?q=battle",
+        "bodyTextLength": 433,
+        "bodyTextSample": "TikTok\nbattle\nFor You\nShop\nExplore\nFollowing\nLIVE\nUpload\nProfile\nMore\nLog in\nCompany\nProgram\nTerms & Policies\n© 2026 TikTok\nTop\nUsers\nVideos\nLIVE\nPhoto\nLog in\nLog in to search for popular content\nUse QR code\nUse phone or email\nContinue with Facebook\nContinue with Google\nContinue with Apple\n\nBy continuing, you agree to TikTok’s Terms of Service and confirm that you have read TikTok’s Privacy Policy.\n\nDon’t have an account?\nSign up",
+        "anchorCount": 12,
+        "anchors": [
+          {
+            "text": "TikTok",
+            "href": "https://www.tiktok.com/"
+          },
+          {
+            "text": "TikTok",
+            "href": "https://www.tiktok.com/"
+          },
+          {
+            "text": "For You",
+            "href": "https://www.tiktok.com/"
+          },
+          {
+            "text": "Shop",
+            "href": "https://www.tiktok.com/shop"
+          },
+          {
+            "text": "Explore",
+            "href": "https://www.tiktok.com/explore"
+          },
+          {
+            "text": "Following",
+            "href": "https://www.tiktok.com/following"
+          },
+          {
+            "text": "LIVE",
+            "href": "https://www.tiktok.com/live"
+          },
+          {
+            "text": "Upload",
+            "href": "https://www.tiktok.com/tiktokstudio/upload?from=webapp&tab=video"
+          },
+          {
+            "text": "Profile",
+            "href": "https://www.tiktok.com/@"
+          },
+          {
+            "text": "Terms of Service",
+            "href": "https://www.tiktok.com/legal/terms-of-use?lang=en"
+          },
+          {
+            "text": "Privacy Policy",
+            "href": "https://www.tiktok.com/legal/privacy-policy?lang=en"
+          },
+          {
+            "text": "Sign up",
+            "href": "https://www.tiktok.com/signup?enter_method=prompt&hide_close_btn=1&is_modal=1&lang=en&redirect_url=https%3A%2F%2Fwww.tiktok.com%2Fsearch%2Flive%3Fq%3Dbattle&type=search"
+          }
+        ]
+      }
     }
   ]
 }
