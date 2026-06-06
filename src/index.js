@@ -4,7 +4,10 @@ import { commitJsonToGitHub } from './githubLogger.js';
 
 const keywords = ['push', 'battle', 'gaming'];
 
+const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || 'unknown';
+
 console.log('🚀 TikTok Live Scout starting');
+console.log(`🔖 Commit: ${commitHash}`);
 
 let allResults = [];
 
@@ -28,6 +31,7 @@ await commitJsonToGitHub(
   'logs/latest.json',
   {
     created_at: new Date().toISOString(),
+    commit: commitHash,
     results: allResults
   },
   'Update latest scraper log'
