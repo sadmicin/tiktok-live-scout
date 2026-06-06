@@ -63,6 +63,95 @@ async function newTikTokPage(browser) {
   };
 }
 
+async function closeLoginPopup(page) {
+  await page.waitForTimeout(3000);
+
+  try {
+    await page.locator('[aria-label="Close"]').click({
+      timeout: 5000
+    });
+
+    console.log('Closed TikTok login popup');
+    return true;
+  } catch {
+    console.log('No login popup close button found');
+    return false;
+  }
+}
+
+async function clickLiveTab(page) {
+  try {
+    await page.getByText('LIVE', { exact: true }).click({
+      timeout: 5000
+    });
+
+    console.log('Clicked LIVE tab');
+    await page.waitForTimeout(8000);
+    return true;
+  } catch (error) {
+    console.log('Could not click LIVE tab:', String(error?.message || error));
+    return false;
+  }
+}
+
+function extractTikTokPage() {
+  const text = document.body?.innerText || '';
+  const html = document.documentElement?.innerHTML || '';
+
+  const links = Array.from(document.querySelectorAll('a'));
+  const creatorsByUsername = new Map();
+
+  for (const link of links) {
+    const href = link.href || '';
+    const match = href.match(/\/(@[^/?#]+)/);
+
+    if (!match) continue;
+
+    const username = match[1].replace('@', '').trim();
+    if (!username || username === '') continue;
+
+    const card = link.closest('div');
+    const cardText = (card?.innerText || link.innerText || '').trim();
+
+    if (!creatorsByUsername.has(username)) {
+      creatorsByUsername.set(username, {
+        username,
+        profileUrl: href.split('?')[0],
+        text: cardText.slice(0, 1200)
+      });
+    }
+  }
+
+  const images = Array.from(document.querySelectorAll('img'))
+    .slice(0, 80)
+    .map((img) => ({
+      alt: img.alt || '',
+      src: img.currentSrc || img.src || ''
+    }))
+    .filter((img) => img.src);
+
+  return {
+    title: document.title,
+    url: location.href,
+    bodyTextLength: text.length,
+    bodyTextSample: text.slice(0, 3000),
+    htmlLength: html.length,
+    anchorCount: document.querySelectorAll('a').length,
+    creatorCount: creatorsByUsername.size,
+    creators: Array.from(creatorsByUsername.values()).slice(0, 50),
+    images,
+    flags: {
+      hasLoginText: /log in/i.test(text),
+      hasSearchLoginText: /log in to search/i.test(text),
+      hasLiveText: /live/i.test(text),
+      hasCaptchaText: /captcha|verify|robot/i.test(text),
+      hasRoomText: /room/i.test(html),
+      hasUniqueIdText: /unique_id|uniqueId/i.test(html),
+      hasItemListText: /item_list|itemList/i.test(html)
+    }
+  };
+}
+
 export async function debugTikTokPage(keyword = 'battle') {
   const browser = await chromium.launch({ headless: true });
   const { context, page } = await newTikTokPage(browser);
@@ -96,6 +185,8 @@ export async function debugTikTokPage(keyword = 'battle') {
   });
 
   let gotoError = null;
+  let popupClosed = false;
+  let liveTabClicked = false;
 
   try {
     await page.goto(url, {
@@ -103,21 +194,11 @@ export async function debugTikTokPage(keyword = 'battle') {
       timeout: 60000
     });
 
-    await page.waitForTimeout(3000);
+    popupClosed = await closeLoginPopup(page);
+    liveTabClicked = await clickLiveTab(page);
 
-try {
-  await page.locator('[aria-label="Close"]').click({
-    timeout: 5000
-  });
-
-  console.log('Closed TikTok login popup');
-} catch {
-  console.log('No login popup close button found');
-}
-
-await page.waitForTimeout(8000);
-await page.mouse.wheel(0, 5000);
-await page.waitForTimeout(4000);
+    await page.mouse.wheel(0, 5000);
+    await page.waitForTimeout(4000);
 
     await context.storageState({
       path: STORAGE_STATE_PATH
@@ -126,35 +207,7 @@ await page.waitForTimeout(4000);
     gotoError = String(error?.message || error);
   }
 
-  const diagnostics = await page.evaluate(() => {
-    const text = document.body?.innerText || '';
-    const html = document.documentElement?.innerHTML || '';
-
-    const links = Array.from(document.querySelectorAll('a'))
-      .slice(0, 50)
-      .map((a) => ({
-        text: (a.innerText || '').slice(0, 120),
-        href: a.href
-      }));
-
-    return {
-      title: document.title,
-      url: location.href,
-      bodyTextLength: text.length,
-      bodyTextSample: text.slice(0, 2500),
-      htmlLength: html.length,
-      anchorCount: document.querySelectorAll('a').length,
-      links,
-      flags: {
-        hasLoginText: /log in/i.test(text),
-        hasSearchLoginText: /log in to search/i.test(text),
-        hasLiveText: /live/i.test(text),
-        hasCaptchaText: /captcha|verify|robot/i.test(text),
-        hasRoomText: /room/i.test(html),
-        hasUniqueIdText: /unique_id|uniqueId/i.test(html)
-      }
-    };
-  });
+  const diagnostics = await page.evaluate(extractTikTokPage);
 
   const cookies = await context.cookies();
   const screenshot = await page.screenshot({
@@ -169,6 +222,8 @@ await page.waitForTimeout(4000);
     keyword,
     requestedUrl: url,
     gotoError,
+    popupClosed,
+    liveTabClicked,
     guestState: {
       path: STORAGE_STATE_PATH,
       exists: hasGuestState()
@@ -256,51 +311,25 @@ export async function scrapeTikTokLive(keyword) {
     timeout: 60000
   });
 
-  await page.waitForTimeout(3000);
+  const popupClosed = await closeLoginPopup(page);
+  const liveTabClicked = await clickLiveTab(page);
 
-try {
-  await page.locator('[aria-label="Close"]').click({
-    timeout: 5000
-  });
-
-  console.log('Closed TikTok login popup');
-} catch {
-  console.log('No login popup close button found');
-}
-
-await page.waitForTimeout(5000);
-await page.mouse.wheel(0, 8000);
-await page.waitForTimeout(8000);
+  await page.mouse.wheel(0, 8000);
+  await page.waitForTimeout(8000);
 
   await context.storageState({
     path: STORAGE_STATE_PATH
   });
 
-  const pageDiagnostics = await page.evaluate(() => {
-    const text = document.body?.innerText || '';
-
-    const anchors = Array.from(document.querySelectorAll('a'))
-      .slice(0, 80)
-      .map((a) => ({
-        text: (a.innerText || '').slice(0, 120),
-        href: a.href
-      }));
-
-    return {
-      title: document.title,
-      url: location.href,
-      bodyTextLength: text.length,
-      bodyTextSample: text.slice(0, 3000),
-      anchorCount: document.querySelectorAll('a').length,
-      anchors
-    };
-  });
+  const pageDiagnostics = await page.evaluate(extractTikTokPage);
 
   await browser.close();
 
   return {
     keyword,
     collected_at: new Date().toISOString(),
+    popupClosed,
+    liveTabClicked,
     requestsSeen,
     jsonResponses,
     discoveredCount: discovered.length,
