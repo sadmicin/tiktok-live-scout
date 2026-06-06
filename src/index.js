@@ -1,41 +1,83 @@
+import express from 'express';
 import fs from 'fs';
 import { scrapeTikTokLive } from './scraper.js';
 import { commitJsonToGitHub } from './githubLogger.js';
 
 const keywords = ['battle'];
-
 const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || 'unknown';
+const port = process.env.PORT || 3000;
 
-console.log('🚀 TikTok Live Scout starting');
-console.log(`🔖 Commit: ${commitHash}`);
+let latestRun = null;
+let isRunning = false;
 
-let allResults = [];
+async function runScrape() {
+  if (isRunning) {
+    console.log('⏭️ Scrape already running; skipping duplicate trigger');
+    return latestRun;
+  }
 
-for (const keyword of keywords) {
-  console.log(`🔎 Starting keyword: ${keyword}`);
+  isRunning = true;
+  console.log('🚀 TikTok Live Scout starting');
+  console.log(`🔖 Commit: ${commitHash}`);
 
-  const results = await scrapeTikTokLive(keyword);
+  try {
+    const allResults = [];
 
-  console.log(`✅ ${keyword}: collected`);
+    for (const keyword of keywords) {
+      console.log(`🔎 Starting keyword: ${keyword}`);
+      const results = await scrapeTikTokLive(keyword);
+      console.log(`✅ ${keyword}: collected`);
+      allResults.push(results);
+    }
 
-  allResults.push(results);
+    latestRun = {
+      created_at: new Date().toISOString(),
+      commit: commitHash,
+      results: allResults
+    };
+
+    fs.mkdirSync('output', { recursive: true });
+    fs.writeFileSync('output/latest.json', JSON.stringify(latestRun, null, 2));
+
+    await commitJsonToGitHub('logs/latest.json', latestRun, 'Update latest scraper log');
+
+    console.log(`💾 Saved ${allResults.length} keyword results`);
+    console.log('DONE');
+    return latestRun;
+  } catch (error) {
+    console.error('❌ Scrape failed:', error);
+    latestRun = {
+      created_at: new Date().toISOString(),
+      commit: commitHash,
+      error: String(error?.message || error)
+    };
+    return latestRun;
+  } finally {
+    isRunning = false;
+  }
 }
 
-fs.mkdirSync('output', { recursive: true });
-fs.writeFileSync(
-  'output/latest.json',
-  JSON.stringify(allResults, null, 2)
-);
+const app = express();
 
-await commitJsonToGitHub(
-  'logs/latest.json',
-  {
-    created_at: new Date().toISOString(),
+app.get('/', (_req, res) => {
+  res.json({
+    status: 'ok',
     commit: commitHash,
-    results: allResults
-  },
-  'Update latest scraper log'
-);
+    latestRunAt: latestRun?.created_at || null,
+    isRunning
+  });
+});
 
-console.log(`💾 Saved ${allResults.length} keyword results`);
-console.log('DONE');
+app.get('/run', async (_req, res) => {
+  const result = await runScrape();
+  res.json(result);
+});
+
+app.get('/latest', (_req, res) => {
+  res.json(latestRun || { status: 'no run yet', commit: commitHash });
+});
+
+app.listen(port, () => {
+  console.log(`🌐 Server listening on port ${port}`);
+  runScrape();
+});
