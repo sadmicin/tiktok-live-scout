@@ -2,7 +2,7 @@ import fs from 'fs';
 import { scrapeTikTokLive } from './scraper.js';
 import { commitJsonToGitHub } from './githubLogger.js';
 
-const keywords = ['push', 'battle', 'gaming'];
+const keywords = ['battle'];
 
 const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || 'unknown';
 
