@@ -85,6 +85,8 @@ async function forceLiveSearch(page, keyword) {
     timeout: 60000
   });
 
+  await page.waitForTimeout(3000);
+  await closeLoginPopup(page);
   await page.waitForTimeout(8000);
   return true;
 }
