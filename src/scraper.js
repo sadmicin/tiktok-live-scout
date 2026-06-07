@@ -2,8 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import { chromium } from 'playwright';
 
-// Thin logger that both writes to stdout and appends to a buffer so callers
-// can include the full run log in the JSON committed to GitHub.
 function makeLogger() {
   const lines = [];
   const log = (...args) => {
@@ -21,20 +19,6 @@ const TIKTOK_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-const ROOM_HINT_WORDS = [
-  'id_str',
-  'title',
-  'user_count',
-  'owner',
-  'display_id',
-  'nickname',
-  'avatar_thumb',
-  'avatar_medium',
-  'link_mic',
-  'battle_settings',
-  'stats'
-];
-
 function hasGuestState() {
   return fs.existsSync(STORAGE_STATE_PATH);
 }
@@ -48,197 +32,32 @@ function parseTikTokCount(value) {
   const cleaned = String(value).trim().replace(/,/g, '');
   const match = cleaned.match(/^([0-9]+(?:\.[0-9]+)?)([KMB])?$/i);
   if (!match) return 0;
-
   const number = Number(match[1]);
   const suffix = (match[2] || '').toUpperCase();
-  const multiplier = suffix === 'B' ? 1000000000 : suffix === 'M' ? 1000000 : suffix === 'K' ? 1000 : 1;
+  const multiplier = suffix === 'B' ? 1_000_000_000 : suffix === 'M' ? 1_000_000 : suffix === 'K' ? 1_000 : 1;
   return Math.round(number * multiplier);
 }
 
-function normalizeRenderedCreators(pageDiagnostics) {
-  const creators = pageDiagnostics?.creators || [];
-  const normalized = [];
-  const seen = new Set();
-
-  for (const creator of creators) {
-    const username = creator.username || '';
-    if (!username || seen.has(username)) continue;
-
-    const lines = String(creator.text || '')
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const usernameIndex = lines.findIndex((line) => line === username);
-    const localLines = usernameIndex >= 0 ? lines.slice(Math.max(0, usernameIndex - 2), usernameIndex + 8) : lines;
-    const nickname = usernameIndex > 0 ? lines[usernameIndex - 1] : username;
-    const followersIndex = localLines.findIndex((line) => /^Followers$/i.test(line));
-    const likesIndex = localLines.findIndex((line) => /^Likes$/i.test(line));
-    const followersText = followersIndex > 0 ? localLines[followersIndex - 1] : null;
-    const likesText = likesIndex > 0 ? localLines[likesIndex - 1] : null;
-    const beforeUsername = usernameIndex >= 0 ? lines.slice(Math.max(0, usernameIndex - 4), usernameIndex + 1) : [];
-    const afterUsername = usernameIndex >= 0 ? lines.slice(usernameIndex, usernameIndex + 8) : [];
-
-    seen.add(username);
-    normalized.push({
-      username,
-      nickname,
-      followersText,
-      followers: parseTikTokCount(followersText),
-      likesText,
-      likes: parseTikTokCount(likesText),
-      isLive: beforeUsername.includes('LIVE') || afterUsername.includes('LIVE'),
-      profileUrl: creator.profileUrl || `https://www.tiktok.com/@${username}`,
-      liveUrl: `https://www.tiktok.com/@${username}/live`,
-      rawText: creator.text || ''
-    });
-  }
-
-  return normalized;
+async function launchBrowser() {
+  return chromium.launch({
+    headless: false,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-dev-shm-usage',
+    ]
+  });
 }
 
-function firstUrl(imageObject) {
-  return imageObject?.url_list?.[0] || imageObject?.urls?.[0] || null;
-}
-
-function getSnapshotImage(room) {
-  return firstUrl(room?.stream_snapshot) || null;
-}
-
-function looksLikeRoomObject(value) {
-  return Boolean(
-    value &&
-      typeof value === 'object' &&
-      !Array.isArray(value) &&
-      (value.id_str || value.id) &&
-      value.title !== undefined &&
-      value.user_count !== undefined &&
-      value.owner &&
-      typeof value.owner === 'object' &&
-      (value.owner.display_id || value.owner.nickname)
-  );
-}
-
-function normalizeRoom(room, sourcePath = '$') {
-  const owner = room.owner || {};
-  const username = owner.display_id || '';
-
-  return {
-    sourcePath,
-    roomId: String(room.id_str || room.id || ''),
-    title: room.title || '',
-    viewers: Number(room.user_count || 0),
-    totalUsers: Number(room.stats?.total_user || 0),
-    likes: Number(room.like_count || 0),
-    keyword: room.keyword || null,
-    owner: {
-      userId: String(owner.id_str || owner.id || room.owner_user_id || ''),
-      username,
-      nickname: owner.nickname || '',
-      bio: owner.bio_description || '',
-      followers: Number(owner.follow_info?.follower_count || 0),
-      avatar: firstUrl(owner.avatar_medium) || firstUrl(owner.avatar_thumb) || firstUrl(room.cover),
-      verified: Boolean(owner.authentication_info?.has_cert)
-    },
-    cover: firstUrl(room.cover),
-    snapshot: getSnapshotImage(room),
-    liveUrl: username ? `https://www.tiktok.com/@${username}/live` : null,
-    battle: {
-      hasLinkMic: Boolean(room.link_mic),
-      hasBattleSettings: Boolean(room.link_mic?.battle_settings)
-    },
-    signals: {
-      status: room.status,
-      liveRoomMode: room.live_room_mode,
-      startTime: room.start_time,
-      hashtag: room.hashtag?.title || null
-    }
-  };
-}
-
-function collectRoomObjects(value, pathName = '$', rooms = []) {
-  if (!value || typeof value !== 'object' || rooms.length >= 100) return rooms;
-
-  if (looksLikeRoomObject(value)) {
-    rooms.push(normalizeRoom(value, pathName));
-    return rooms;
-  }
-
-  if (Array.isArray(value)) {
-    value.slice(0, 200).forEach((item, index) => {
-      collectRoomObjects(item, `${pathName}[${index}]`, rooms);
-    });
-    return rooms;
-  }
-
-  for (const [key, val] of Object.entries(value).slice(0, 150)) {
-    collectRoomObjects(val, `${pathName}.${key}`, rooms);
-  }
-
-  return rooms;
-}
-
-function compactObject(value, depth = 0) {
-  if (value === null || typeof value !== 'object') return value;
-  if (depth > 2) return Array.isArray(value) ? `[array:${value.length}]` : '[object]';
-
-  if (Array.isArray(value)) {
-    return value.slice(0, 3).map((item) => compactObject(item, depth + 1));
-  }
-
-  const output = {};
-  for (const [key, val] of Object.entries(value).slice(0, 25)) {
-    output[key] = compactObject(val, depth + 1);
-  }
-  return output;
-}
-
-function collectRoomCandidates(value, pathName = '$', matches = []) {
-  if (!value || typeof value !== 'object' || matches.length >= 25) return matches;
-
-  if (Array.isArray(value)) {
-    value.slice(0, 60).forEach((item, index) => collectRoomCandidates(item, `${pathName}[${index}]`, matches));
-    return matches;
-  }
-
-  const jsonText = JSON.stringify(value).slice(0, 8000);
-  const looksUseful =
-    /id_str/.test(jsonText) &&
-    /user_count/.test(jsonText) &&
-    /owner/.test(jsonText) &&
-    /(display_id|nickname)/.test(jsonText);
-
-  if (looksUseful) {
-    matches.push({
-      path: pathName,
-      signals: {
-        hasIdStr: /id_str/.test(jsonText),
-        hasTitle: /title/.test(jsonText),
-        hasUserCount: /user_count/.test(jsonText),
-        hasOwner: /owner/.test(jsonText),
-        hasDisplayId: /display_id/.test(jsonText),
-        hasBattleSettings: /battle_settings/.test(jsonText)
-      },
-      sample: compactObject(value)
-    });
-  }
-
-  for (const [key, val] of Object.entries(value).slice(0, 80)) {
-    collectRoomCandidates(val, `${pathName}.${key}`, matches);
-  }
-
-  return matches;
-}
-
-async function newTikTokPage(browser) {
+async function newTikTokContext(browser) {
   fs.mkdirSync('output', { recursive: true });
 
   const context = await browser.newContext({
-    viewport: { width: 1365, height: 900 },
+    viewport: { width: 1920, height: 1080 },
     userAgent: TIKTOK_USER_AGENT,
     locale: 'en-US',
     timezoneId: 'America/New_York',
-    // Realistic Chrome client-hint headers — TikTok checks these server-side.
     extraHTTPHeaders: {
       'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
       'sec-ch-ua-mobile': '?0',
@@ -248,228 +67,210 @@ async function newTikTokPage(browser) {
     ...(hasGuestState() ? { storageState: STORAGE_STATE_PATH } : {})
   });
 
-  // Remove the navigator.webdriver flag that Playwright sets — TikTok checks
-  // for this and may serve a bot-shell page when it detects automation.
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
     Object.defineProperty(window, 'chrome', { get: () => ({ runtime: {} }) });
-    // Spoof realistic plugin list.
     Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
     Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
   });
 
-  if (!hasGuestState()) {
-    console.log('Creating TikTok guest session...');
-    const warmup = await context.newPage();
-    // Let the homepage fully load (networkidle) so cookies + JS init happen.
-    await warmup.goto('https://www.tiktok.com/', { waitUntil: 'networkidle', timeout: 90000 });
-    await warmup.waitForTimeout(8000);
-    await context.storageState({ path: STORAGE_STATE_PATH });
-    console.log('Saved TikTok guest session:', STORAGE_STATE_PATH);
-    await warmup.close();
-  }
-
-  const page = await context.newPage();
-  return { context, page };
+  return context;
 }
 
-async function closeLoginPopup(page) {
-  await page.waitForTimeout(3000);
-
+async function dismissLoginPopup(page) {
+  await page.waitForTimeout(2000);
   try {
-    await page.locator('[aria-label="Close"]').click({ timeout: 5000 });
-    console.log('Closed TikTok login popup');
-    return true;
+    await page.locator('[aria-label="Close"]').click({ timeout: 4000 });
+    console.log('Dismissed login popup');
+    await page.waitForTimeout(1000);
   } catch {
-    console.log('No login popup close button found');
-    return false;
+    // no popup
   }
 }
 
-async function forceLiveSearch(page, keyword) {
-  await page.goto(liveSearchUrl(keyword), {
-    waitUntil: 'domcontentloaded',
-    timeout: 60000
-  });
+// Extract live stream cards from the current page DOM.
+// Returns array of { username, title, viewers, viewersRaw, liveUrl, avatarSrc }
+function extractLiveCards() {
+  const results = new Map();
 
-  await page.waitForTimeout(3000);
-  await closeLoginPopup(page);
-  await page.waitForTimeout(8000);
-  return true;
-}
+  // TikTok search/live cards have links to /@username/live
+  const liveLinks = Array.from(document.querySelectorAll('a[href*="/live"]'));
 
-function extractTikTokPage() {
-  const text = document.body?.innerText || '';
-  const html = document.documentElement?.innerHTML || '';
-  const links = Array.from(document.querySelectorAll('a'));
-  const creatorsByUsername = new Map();
-
-  for (const link of links) {
+  for (const link of liveLinks) {
     const href = link.href || '';
-    const match = href.match(/\/(@[^/?#]+)/);
-    if (!match) continue;
+    // Match /@username/live
+    const m = href.match(/\/@([^/?#]+)\/live/);
+    if (!m) continue;
+    const username = m[1];
+    if (results.has(username)) continue;
 
-    const username = match[1].replace('@', '').trim();
-    if (!username) continue;
-
-    const card = link.closest('div');
-    const cardText = (card?.innerText || link.innerText || '').trim();
-
-    if (!creatorsByUsername.has(username)) {
-      creatorsByUsername.set(username, {
-        username,
-        profileUrl: href.split('?')[0],
-        text: cardText.slice(0, 1200)
-      });
+    // Walk up to find the card container
+    let card = link;
+    for (let i = 0; i < 8; i++) {
+      card = card.parentElement;
+      if (!card) break;
+      // Stop at a reasonably-sized container
+      if (card.querySelectorAll('a').length >= 1 && card.innerText && card.innerText.length > 10) break;
     }
+    if (!card) card = link;
+
+    const text = (card.innerText || '').trim();
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+    // Viewer count: look for patterns like "1.2K watching", "5K viewers", or just numbers near "watching"
+    let viewersRaw = null;
+    let viewers = 0;
+    for (const line of lines) {
+      const vm = line.match(/^([\d.]+[KMB]?)\s*(watching|viewers?|views?)?$/i);
+      if (vm) {
+        viewersRaw = vm[1];
+        const n = parseFloat(viewersRaw);
+        const s = (viewersRaw.slice(-1) || '').toUpperCase();
+        viewers = Math.round(n * (s === 'B' ? 1e9 : s === 'M' ? 1e6 : s === 'K' ? 1e3 : 1));
+        break;
+      }
+    }
+
+    // Title: first meaningful line that isn't the username or viewer count
+    const title = lines.find(l => l !== username && l !== `@${username}` && l !== viewersRaw && l.length > 1 && !/^\d/.test(l)) || '';
+
+    // Avatar image
+    const img = card.querySelector('img');
+    const avatarSrc = img?.src || img?.currentSrc || null;
+
+    results.set(username, {
+      username,
+      title,
+      viewers,
+      viewersRaw,
+      liveUrl: `https://www.tiktok.com/@${username}/live`,
+      avatarSrc,
+      cardText: text.slice(0, 400),
+    });
   }
 
-  const images = Array.from(document.querySelectorAll('img'))
-    .slice(0, 80)
-    .map((img) => ({ alt: img.alt || '', src: img.currentSrc || img.src || '' }))
-    .filter((img) => img.src);
-
-  return {
-    title: document.title,
-    url: location.href,
-    bodyTextLength: text.length,
-    bodyTextSample: text.slice(0, 3000),
-    htmlLength: html.length,
-    anchorCount: document.querySelectorAll('a').length,
-    creatorCount: creatorsByUsername.size,
-    creators: Array.from(creatorsByUsername.values()).slice(0, 50),
-    images,
-    flags: {
-      hasLoginText: /log in/i.test(text),
-      hasSearchLoginText: /log in to search/i.test(text),
-      hasLiveText: /live/i.test(text),
-      hasCaptchaText: /captcha|verify|robot/i.test(text),
-      hasRoomText: /room/i.test(html),
-      hasUniqueIdText: /unique_id|uniqueId/i.test(html),
-      hasItemListText: /item_list|itemList/i.test(html)
-    }
-  };
+  return Array.from(results.values());
 }
 
-function analyzeJsonResponse(url, text) {
-  let json = null;
-  let keys = [];
-  let hints = [];
-  let roomCandidates = [];
-  let rooms = [];
+async function scrollAndCollect(page, log, scrollRounds = 12) {
+  const seen = new Map();
+
+  const harvest = async (round) => {
+    const cards = await page.evaluate(extractLiveCards);
+    let newCount = 0;
+    for (const card of cards) {
+      if (!seen.has(card.username)) {
+        seen.set(card.username, card);
+        newCount++;
+      }
+    }
+    log(`[scroll] round ${round}: +${newCount} new, total=${seen.size}`);
+    return newCount;
+  };
+
+  // Initial harvest after page load
+  await harvest(0);
+
+  for (let i = 1; i <= scrollRounds; i++) {
+    await page.mouse.wheel(0, 1200);
+    await page.waitForTimeout(1800);
+    // Extra wait every 4 rounds to let lazy-loaded content appear
+    if (i % 4 === 0) await page.waitForTimeout(1500);
+    await harvest(i);
+  }
+
+  return Array.from(seen.values());
+}
+
+export async function scrapeTikTokLive(keyword) {
+  const { log, lines: runLog } = makeLogger();
+  log(`[scrape] start keyword="${keyword}"`);
+
+  const browser = await launchBrowser();
+  let screenshotBase64 = null;
 
   try {
-    json = JSON.parse(text);
-    keys = Object.keys(json).slice(0, 30);
-  } catch {}
+    const context = await newTikTokContext(browser);
 
-  for (const word of ROOM_HINT_WORDS) {
-    if (text.includes(word)) hints.push(word);
-  }
-
-  if (json) {
-    rooms = collectRoomObjects(json).slice(0, 50);
-    if (rooms.length || hints.length >= 4) {
-      roomCandidates = collectRoomCandidates(json).slice(0, 8);
+    // Warm up guest session if we don't have one
+    if (!hasGuestState()) {
+      log('[scrape] warming up guest session...');
+      const warmup = await context.newPage();
+      await warmup.goto('https://www.tiktok.com/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await warmup.waitForTimeout(5000);
+      await context.storageState({ path: STORAGE_STATE_PATH });
+      log('[scrape] guest session saved');
+      await warmup.close();
     }
-  }
 
-  return {
-    url: url.split('?')[0],
-    size: text.length,
-    keys,
-    hints,
-    roomCount: rooms.length,
-    rooms,
-    candidateCount: roomCandidates.length,
-    roomCandidates
-  };
-}
+    const page = await context.newPage();
+    const url = liveSearchUrl(keyword);
+    log(`[scrape] navigating to ${url}`);
 
-function mergeRooms(existingRooms, incomingRooms) {
-  const seen = new Set(existingRooms.map((room) => room.roomId));
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await dismissLoginPopup(page);
 
-  for (const room of incomingRooms) {
-    if (!room.roomId || seen.has(room.roomId)) continue;
-    seen.add(room.roomId);
-    existingRooms.push(room);
-  }
-}
-
-function attachResponseCapture(page, discovered, rooms, counters) {
-  page.on('response', async (response) => {
+    // Wait for cards to appear
+    log('[scrape] waiting for live cards to render...');
     try {
-      counters.requestsSeen++;
-      const url = response.url();
-      const type = response.headers()['content-type'] || '';
+      await page.waitForSelector('a[href*="/live"]', { timeout: 15000 });
+    } catch {
+      log('[scrape] no live links appeared within 15s, proceeding anyway');
+    }
+    await page.waitForTimeout(2000);
 
-      if (!type.includes('json')) return;
-      counters.jsonResponses++;
+    const rooms = await scrollAndCollect(page, log, 12);
 
-      if (url.includes('monitor') || url.includes('log') || url.includes('analytics')) return;
+    // Save updated guest state
+    await context.storageState({ path: STORAGE_STATE_PATH });
+    screenshotBase64 = (await page.screenshot({ fullPage: false, type: 'png' })).toString('base64');
 
-      const text = await response.text();
-      const analyzed = analyzeJsonResponse(url, text);
+    await browser.close();
 
-      if (analyzed.rooms.length) mergeRooms(rooms, analyzed.rooms);
-
-      if (analyzed.roomCount || analyzed.candidateCount) {
-        discovered.push(analyzed);
-      }
-    } catch {}
-  });
+    log(`[scrape] done. rooms=${rooms.length}`);
+    return {
+      keyword,
+      collected_at: new Date().toISOString(),
+      mode: 'dom-scroll',
+      roomCount: rooms.length,
+      rooms,
+      runLog,
+      screenshotBase64,
+    };
+  } catch (err) {
+    log(`[scrape] fatal error: ${err.message}`);
+    try { await browser.close(); } catch {}
+    return {
+      keyword,
+      collected_at: new Date().toISOString(),
+      mode: 'failed',
+      error: err.message,
+      roomCount: 0,
+      rooms: [],
+      runLog,
+      screenshotBase64,
+    };
+  }
 }
 
 export async function debugTikTokPage(keyword = 'battle') {
-  const browser = await chromium.launch({ headless: true, args: ['--disable-blink-features=AutomationControlled'] });
-  const { context, page } = await newTikTokPage(browser);
+  const browser = await launchBrowser();
+  const context = await newTikTokContext(browser);
+  const page = await context.newPage();
   const url = liveSearchUrl(keyword);
-  const responses = [];
-  const requestFailures = [];
-  const discovered = [];
-  const rooms = [];
-  const counters = { requestsSeen: 0, jsonResponses: 0 };
-
-  attachResponseCapture(page, discovered, rooms, counters);
-
-  page.on('response', async (response) => {
-    const responseUrl = response.url();
-    const contentType = response.headers()['content-type'] || '';
-
-    if (responseUrl.includes('tiktok') || responseUrl.includes('tiktokw') || responseUrl.includes('tiktokv')) {
-      responses.push({
-        status: response.status(),
-        url: responseUrl.split('?')[0],
-        contentType: contentType.slice(0, 80)
-      });
-    }
-  });
-
-  page.on('requestfailed', (request) => {
-    requestFailures.push({
-      url: request.url().split('?')[0],
-      failure: request.failure()?.errorText || 'unknown'
-    });
-  });
 
   let gotoError = null;
-  let popupClosed = false;
-  let liveTabClicked = false;
-
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    popupClosed = await closeLoginPopup(page);
-    liveTabClicked = await forceLiveSearch(page, keyword);
-    await page.mouse.wheel(0, 5000);
-    await page.waitForTimeout(4000);
-    await context.storageState({ path: STORAGE_STATE_PATH });
-  } catch (error) {
-    gotoError = String(error?.message || error);
+    await dismissLoginPopup(page);
+    await page.waitForTimeout(5000);
+    await page.mouse.wheel(0, 3000);
+    await page.waitForTimeout(3000);
+  } catch (err) {
+    gotoError = err.message;
   }
 
-  const diagnostics = await page.evaluate(extractTikTokPage);
-  const creators = normalizeRenderedCreators(diagnostics);
-  const cookies = await context.cookies();
+  const cards = await page.evaluate(extractLiveCards);
   const screenshot = await page.screenshot({ fullPage: true, type: 'png' });
   await browser.close();
 
@@ -478,359 +279,8 @@ export async function debugTikTokPage(keyword = 'battle') {
     keyword,
     requestedUrl: url,
     gotoError,
-    popupClosed,
-    liveTabClicked,
-    requestsSeen: counters.requestsSeen,
-    jsonResponses: counters.jsonResponses,
-    creatorCount: creators.length,
-    creators,
-    roomCount: rooms.length,
-    rooms: rooms.slice(0, 100),
-    discoveredCount: discovered.length,
-    discovered: discovered.slice(0, 25),
-    guestState: { path: STORAGE_STATE_PATH, exists: hasGuestState() },
-    browser: {
-      headless: true,
-      userAgent: TIKTOK_USER_AGENT,
-      locale: 'en-US',
-      timezoneId: 'America/New_York'
-    },
-    cookies: {
-      count: cookies.length,
-      names: cookies.map((cookie) => cookie.name).slice(0, 30)
-    },
-    responses: responses.slice(0, 80),
-    responseCount: responses.length,
-    requestFailures: requestFailures.slice(0, 30),
-    requestFailureCount: requestFailures.length,
-    diagnostics,
-    screenshotBase64: screenshot.toString('base64')
-  };
-}
-
-async function extractSeedHeaders(request) {
-  const rawHeaders = await request.headersArray();
-  const headers = {};
-  for (const { name, value } of rawHeaders) {
-    if (!name.startsWith(':') && name.toLowerCase() !== 'content-length') {
-      headers[name] = value;
-    }
-  }
-  return headers;
-}
-
-// Does this JSON body contain live-room-like data under any field naming scheme?
-function looksLivish(json, text) {
-  if (!json || typeof json !== 'object') return false;
-  // Strict: actual room objects we know how to normalize.
-  if (collectRoomObjects(json).length > 0) return true;
-  // Permissive: any JSON that mentions viewer counts and rooms.
-  const hasViewer = /viewer_count|user_count|viewerCount|watch_cnt/i.test(text);
-  const hasRoom   = /room_id|roomId|id_str/i.test(text);
-  const hasUser   = /unique_id|uniqueId|display_id|nickname/i.test(text);
-  return hasViewer && hasRoom && hasUser;
-}
-
-// Capture a live-room API seed from the browser.
-// We log every JSON API response for diagnosis, then accept the first one
-// that looks like it contains live-room data (strict or permissive match).
-async function captureApiSeed(keyword, log) {
-  // Always start with a fresh guest session to avoid stale redirect state.
-  if (hasGuestState()) {
-    try { fs.unlinkSync(STORAGE_STATE_PATH); } catch {}
-  }
-
-  const browser = await chromium.launch({ headless: true, args: ['--disable-blink-features=AutomationControlled'] });
-  const { context, page } = await newTikTokPage(browser);
-
-  let seed = null;
-  const apiLog = [];
-
-  page.on('response', async (response) => {
-    const url = response.url();
-    if (!url.includes('/api/') && !url.includes('/webcast/')) return;
-    if (/log|monitor|analytics|sentry|report|push_check/i.test(url)) return;
-    try {
-      const ct = response.headers()['content-type'] || '';
-      if (!ct.includes('json')) return;
-      const text = await response.text();
-      if (text.length < 50) return;
-      let json;
-      try { json = JSON.parse(text); } catch { return; }
-
-      const keys = Object.keys(json).slice(0, 12).join(',');
-      const strictRooms = collectRoomObjects(json).length;
-      const permissive  = looksLivish(json, text);
-      const entry = { url: url.split('?')[0], size: text.length, keys, strictRooms, permissive };
-      apiLog.push(entry);
-      log('[api]', entry.url, '| keys:', keys, '| rooms:', strictRooms, '| live-ish:', permissive);
-
-      if (!seed && permissive) {
-        const headers = await extractSeedHeaders(response.request());
-        seed = { url: response.request().url(), headers, strictRooms, permissive: true };
-        log('[seed] captured:', url.split('?')[0], 'strict rooms:', strictRooms);
-      }
-    } catch {}
-  });
-
-  // ── Phase 1: /live discovery page ────────────────────────────────────
-  log('[seed] phase 1: /live page');
-  let ssrRooms = [];
-  let ssrInfo = {};
-  try {
-    // Use networkidle so TikTok's JS has time to initialise and make content calls.
-    await page.goto('https://www.tiktok.com/live', { waitUntil: 'networkidle', timeout: 90000 });
-    await closeLoginPopup(page);
-    await page.waitForTimeout(3000);
-    await page.mouse.wheel(0, 3000);
-    await page.waitForTimeout(5000);
-    await page.mouse.wheel(0, 3000);
-    await page.waitForTimeout(5000);
-  } catch (e) { log('[seed] /live error (may still have content):', e.message); }
-
-  // Extract the full __UNIVERSAL_DATA_FOR_REHYDRATION__ JSON (TikTok SSR data).
-  const universalJson = await page.evaluate(() => {
-    const el = document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__');
-    return el?.textContent || null;
-  });
-
-  ssrInfo = await page.evaluate(() => {
-    return {
-      title: document.title,
-      url: location.href,
-      bodyLength: document.body?.innerHTML?.length || 0,
-    };
-  });
-
-  if (universalJson) {
-    try {
-      const universal = JSON.parse(universalJson);
-      const scopes = universal.__DEFAULT_SCOPE__ || {};
-      const scopeKeys = Object.keys(scopes);
-      log('[ssr] __UNIVERSAL_DATA_FOR_REHYDRATION__ scopes:', scopeKeys.join(', '));
-
-      for (const [key, value] of Object.entries(scopes)) {
-        const found = collectRoomObjects(value);
-        if (found.length > 0) {
-          log('[ssr] found', found.length, 'rooms in scope:', key);
-          ssrRooms = ssrRooms.concat(found);
-        } else {
-          // Log the top-level keys of each scope for diagnosis.
-          const subkeys = typeof value === 'object' && value ? Object.keys(value).slice(0, 8).join(',') : '';
-          log('[ssr] scope', key, '— keys:', subkeys);
-        }
-      }
-      log('[ssr] total SSR rooms found:', ssrRooms.length);
-      ssrInfo.scopeKeys = scopeKeys;
-      ssrInfo.ssrRoomCount = ssrRooms.length;
-    } catch (e) {
-      log('[ssr] parse error:', e.message);
-      ssrInfo.ssrParseError = e.message;
-    }
-  } else {
-    log('[ssr] no __UNIVERSAL_DATA_FOR_REHYDRATION__ found');
-    ssrInfo.ssrParseError = 'no script element found';
-  }
-  log('[seed] page title:', ssrInfo.title, '| bodyLen:', ssrInfo.bodyLength);
-
-  // ── Phase 2: search page → navigate via the live <a> href directly ──
-  if (!seed) {
-    log('[seed] phase 2: search → live href navigation');
-    const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
-    try {
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForTimeout(2000);
-      await closeLoginPopup(page);
-      await page.waitForTimeout(2000);
-    } catch (e) { log('[seed] search nav error:', e.message); }
-
-    const liveHref = await page.evaluate(() => {
-      const wrapper = document.querySelector('[class*="DivLiveNavWrapper"], [class*="LiveNavWrapper"], [aria-haspopup="dialog"]');
-      const a = wrapper?.querySelector('a[href]');
-      return a?.href || null;
-    });
-
-    if (liveHref && !liveHref.includes('/live')) {
-      log('[seed] navigating directly to live href:', liveHref);
-      try {
-        await page.goto(liveHref, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(8000);
-      } catch (e) { log('[seed] live href nav error:', e.message); }
-    } else {
-      log('[seed] live href points to /live (already tried) or missing:', liveHref);
-      try {
-        await page.goto(liveSearchUrl(keyword), { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(8000);
-      } catch (e) { log('[seed] /search/live direct error:', e.message); }
-    }
-  }
-
-  log('[seed] done. url:', page.url(), '| seed:', !!seed, '| ssrRooms:', ssrRooms.length, '| api calls:', apiLog.length);
-
-  await context.storageState({ path: STORAGE_STATE_PATH });
-  const screenshot = await page.screenshot({ fullPage: true, type: 'png' });
-  await browser.close();
-
-  return { seed, ssrRooms, screenshotBase64: screenshot.toString('base64'), apiLog, ssrInfo };
-}
-
-// Build the URL for a paginated live-search request.
-// We preserve all original query params (device_id, aid, verifyFp, etc.)
-// and only swap the keyword and cursor.
-function buildPageUrl(seedUrl, keyword, cursor) {
-  const u = new URL(seedUrl);
-  u.searchParams.set('keyword', keyword);
-  u.searchParams.set('offset', String(cursor));
-  // Some TikTok API versions use 'cursor' instead of 'offset'.
-  if (u.searchParams.has('cursor')) u.searchParams.set('cursor', String(cursor));
-  return u.toString();
-}
-
-// Parse rooms out of a TikTok live-search API response body.
-// The response shape is typically:
-//   { data: [ { lives: [ <room>, ... ] }, ... ], cursor: N, has_more: 0|1 }
-// but we also fall back to the generic collectRoomObjects walker.
-function extractRoomsFromApiBody(json) {
-  const rooms = [];
-
-  // Primary path: data[].lives[]
-  if (Array.isArray(json?.data)) {
-    for (const item of json.data) {
-      if (Array.isArray(item?.lives)) {
-        for (const live of item.lives) {
-          if (looksLikeRoomObject(live)) rooms.push(normalizeRoom(live, '$.data[].lives[]'));
-        }
-      }
-      // Some responses nest the room directly in data[].
-      if (looksLikeRoomObject(item)) rooms.push(normalizeRoom(item, '$.data[]'));
-    }
-  }
-
-  // Fallback: walk the whole tree.
-  if (rooms.length === 0) collectRoomObjects(json, '$', rooms);
-
-  return rooms;
-}
-
-async function paginateWithFetch(seed, keyword, timeLimitMs = 4 * 60 * 1000) {
-  const allRooms = [];
-  const seen = new Set();
-  const startTime = Date.now();
-  let cursor = 0;
-  let page = 0;
-  let hasMore = true;
-  let consecutiveEmpty = 0;
-
-  while (hasMore && Date.now() - startTime < timeLimitMs) {
-    const url = buildPageUrl(seed.url, keyword, cursor);
-
-    let json;
-    try {
-      const res = await fetch(url, {
-        headers: seed.headers,
-        signal: AbortSignal.timeout(15000)
-      });
-      if (!res.ok) {
-        console.log(`[paginate] HTTP ${res.status} on page ${page}, stopping`);
-        break;
-      }
-      json = await res.json();
-    } catch (err) {
-      console.log(`[paginate] fetch error on page ${page}:`, err.message);
-      break;
-    }
-
-    const rooms = extractRoomsFromApiBody(json);
-    let added = 0;
-    for (const room of rooms) {
-      if (room.roomId && !seen.has(room.roomId)) {
-        seen.add(room.roomId);
-        allRooms.push(room);
-        added++;
-      }
-    }
-
-    console.log(`[paginate] page=${page} cursor=${cursor} rooms_this_page=${rooms.length} added=${added} total=${allRooms.length}`);
-
-    // Advance cursor — TikTok returns the next cursor in the response.
-    const nextCursor = json?.cursor ?? json?.next_cursor ?? null;
-    hasMore = json?.has_more === 1 || json?.has_more === true;
-
-    if (nextCursor !== null && nextCursor !== cursor) {
-      cursor = nextCursor;
-    } else {
-      // No cursor advancement means we've reached the end.
-      break;
-    }
-
-    if (rooms.length === 0) {
-      consecutiveEmpty++;
-      if (consecutiveEmpty >= 3) break;
-    } else {
-      consecutiveEmpty = 0;
-    }
-
-    page++;
-    // Small delay to avoid hammering TikTok.
-    await new Promise((r) => setTimeout(r, 300));
-  }
-
-  return allRooms;
-}
-
-export async function scrapeTikTokLive(keyword) {
-  const logger = makeLogger();
-  const { log, lines: runLog } = logger;
-
-  log(`[scrape] capturing API seed for keyword="${keyword}"`);
-  const { seed, ssrRooms, screenshotBase64, apiLog, ssrInfo } = await captureApiSeed(keyword, log);
-
-  // Mode A: we captured a live-search API seed → paginate with fetch.
-  if (seed) {
-    log(`[scrape] seed captured, starting fetch pagination`);
-    const rooms = await paginateWithFetch(seed, keyword);
-    return {
-      keyword,
-      collected_at: new Date().toISOString(),
-      mode: 'api-pagination',
-      seedUrl: seed.url.split('?')[0],
-      roomCount: rooms.length,
-      rooms,
-      apiLog,
-      ssrInfo,
-      runLog,
-      screenshotBase64
-    };
-  }
-
-  // Mode B: SSR rooms extracted from __UNIVERSAL_DATA_FOR_REHYDRATION__.
-  if (ssrRooms.length > 0) {
-    log(`[scrape] using ${ssrRooms.length} rooms from SSR page data`);
-    return {
-      keyword,
-      collected_at: new Date().toISOString(),
-      mode: 'ssr-extraction',
-      roomCount: ssrRooms.length,
-      rooms: ssrRooms,
-      apiLog,
-      ssrInfo,
-      runLog,
-      screenshotBase64
-    };
-  }
-
-  // Mode C: nothing worked.
-  log('[scrape] no rooms found via any method');
-  return {
-    keyword,
-    collected_at: new Date().toISOString(),
-    mode: 'failed',
-    error: 'No rooms found. Check runLog and ssrInfo for diagnosis.',
-    roomCount: 0,
-    rooms: [],
-    apiLog,
-    ssrInfo,
-    runLog,
-    screenshotBase64
+    roomCount: cards.length,
+    rooms: cards,
+    screenshotBase64: screenshot.toString('base64'),
   };
 }
