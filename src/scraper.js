@@ -39,6 +39,10 @@ function parseTikTokCount(value) {
 }
 
 async function launchBrowser() {
+  const proxyServer = process.env.PROXY_SERVER;
+  const proxyUsername = process.env.PROXY_USERNAME;
+  const proxyPassword = process.env.PROXY_PASSWORD;
+
   return chromium.launch({
     headless: false,
     args: [
@@ -46,7 +50,14 @@ async function launchBrowser() {
       '--disable-setuid-sandbox',
       '--disable-blink-features=AutomationControlled',
       '--disable-dev-shm-usage',
-    ]
+    ],
+    ...(proxyServer ? {
+      proxy: {
+        server: `http://${proxyServer}`,
+        username: proxyUsername,
+        password: proxyPassword,
+      }
+    } : {})
   });
 }
 
@@ -54,6 +65,7 @@ async function newTikTokContext(browser) {
   fs.mkdirSync('output', { recursive: true });
 
   const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
     viewport: { width: 1920, height: 1080 },
     userAgent: TIKTOK_USER_AGENT,
     locale: 'en-US',
