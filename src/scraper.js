@@ -46,10 +46,9 @@ async function launchBrowser() {
   console.log('[proxy] server:', proxyServer || 'NONE — set PROXY_SERVER env var');
   console.log('[proxy] username:', proxyUsername ? proxyUsername.slice(0, 20) + '…' : 'NONE');
 
-  // Bright Data port 33335 is their SSL proxy endpoint — use https://
-  const proxyUrl = proxyServer
-    ? (proxyServer.includes(':33335') ? `https://${proxyServer}` : `http://${proxyServer}`)
-    : null;
+  // Connect to Bright Data proxy over plain HTTP regardless of port —
+  // the SSL capability refers to target sites, not the proxy connection itself.
+  const proxyUrl = proxyServer ? `http://${proxyServer}` : null;
 
   return chromium.launch({
     headless: false,
