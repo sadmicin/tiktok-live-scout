@@ -3,7 +3,7 @@ import fs from 'fs';
 import { scrapeTikTokLive, debugTikTokPage } from './scraper.js';
 import { commitJsonToGitHub, commitImageToGitHub } from './githubLogger.js';
 
-const keywords = ['battle'];
+const keywords = ['Live'];
 const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || 'unknown';
 const port = process.env.PORT || 3000;
 
@@ -77,7 +77,7 @@ app.get('/run', async (_req, res) => res.json(await runScrape()));
 app.get('/latest', (_req, res) => res.json(latestRun || {status:'no run yet'}));
 
 app.get('/debug-page', async (_req, res) => {
-  latestDebug = await debugTikTokPage('battle');
+  latestDebug = await debugTikTokPage('Live');
 
   await saveRunArtifacts(latestDebug, latestDebug.screenshotBase64);
 
