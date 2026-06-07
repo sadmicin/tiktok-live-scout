@@ -26,6 +26,10 @@ function hasGuestState() {
   return fs.existsSync(STORAGE_STATE_PATH);
 }
 
+function liveSearchUrl(keyword) {
+  return `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
+}
+
 function firstUrl(imageObject) {
   return imageObject?.url_list?.[0] || imageObject?.urls?.[0] || null;
 }
@@ -198,7 +202,7 @@ async function closeLoginPopup(page) {
 }
 
 async function forceLiveSearch(page, keyword) {
-  await page.goto(`https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}`, {
+  await page.goto(liveSearchUrl(keyword), {
     waitUntil: 'domcontentloaded',
     timeout: 60000
   });
@@ -334,7 +338,7 @@ function attachResponseCapture(page, discovered, rooms, counters) {
 export async function debugTikTokPage(keyword = 'battle') {
   const browser = await chromium.launch({ headless: true });
   const { context, page } = await newTikTokPage(browser);
-  const url = `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}`;
+  const url = liveSearchUrl(keyword);
   const responses = [];
   const requestFailures = [];
   const discovered = [];
@@ -425,7 +429,7 @@ export async function scrapeTikTokLive(keyword) {
 
   attachResponseCapture(page, discovered, rooms, counters);
 
-  await page.goto(`https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}`, {
+  await page.goto(liveSearchUrl(keyword), {
     waitUntil: 'domcontentloaded',
     timeout: 60000
   });
