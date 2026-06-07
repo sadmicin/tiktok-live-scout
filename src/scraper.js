@@ -238,6 +238,13 @@ async function newTikTokPage(browser) {
     userAgent: TIKTOK_USER_AGENT,
     locale: 'en-US',
     timezoneId: 'America/New_York',
+    // Realistic Chrome client-hint headers — TikTok checks these server-side.
+    extraHTTPHeaders: {
+      'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Windows"',
+      'accept-language': 'en-US,en;q=0.9',
+    },
     ...(hasGuestState() ? { storageState: STORAGE_STATE_PATH } : {})
   });
 
@@ -245,15 +252,18 @@ async function newTikTokPage(browser) {
   // for this and may serve a bot-shell page when it detects automation.
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    // Spoof a minimal chrome runtime so TikTok's browser-check passes.
     Object.defineProperty(window, 'chrome', { get: () => ({ runtime: {} }) });
+    // Spoof realistic plugin list.
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
   });
 
   if (!hasGuestState()) {
     console.log('Creating TikTok guest session...');
     const warmup = await context.newPage();
-    await warmup.goto('https://www.tiktok.com/', { waitUntil: 'networkidle', timeout: 60000 });
-    await warmup.waitForTimeout(10000);
+    // Let the homepage fully load (networkidle) so cookies + JS init happen.
+    await warmup.goto('https://www.tiktok.com/', { waitUntil: 'networkidle', timeout: 90000 });
+    await warmup.waitForTimeout(8000);
     await context.storageState({ path: STORAGE_STATE_PATH });
     console.log('Saved TikTok guest session:', STORAGE_STATE_PATH);
     await warmup.close();
@@ -568,14 +578,15 @@ async function captureApiSeed(keyword, log) {
   let ssrRooms = [];
   let ssrInfo = {};
   try {
-    await page.goto('https://www.tiktok.com/live', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    // Use networkidle so TikTok's JS has time to initialise and make content calls.
+    await page.goto('https://www.tiktok.com/live', { waitUntil: 'networkidle', timeout: 90000 });
     await closeLoginPopup(page);
     await page.waitForTimeout(3000);
     await page.mouse.wheel(0, 3000);
     await page.waitForTimeout(5000);
     await page.mouse.wheel(0, 3000);
     await page.waitForTimeout(5000);
-  } catch (e) { log('[seed] /live error:', e.message); }
+  } catch (e) { log('[seed] /live error (may still have content):', e.message); }
 
   // Extract the full __UNIVERSAL_DATA_FOR_REHYDRATION__ JSON (TikTok SSR data).
   const universalJson = await page.evaluate(() => {
