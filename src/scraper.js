@@ -477,45 +477,172 @@ export async function debugTikTokPage(keyword = 'battle') {
   };
 }
 
-export async function scrapeTikTokLive(keyword) {
+// Capture the first live-search API request made by the browser so we can
+// replay it directly with fetch (no browser overhead per page).
+async function captureApiSeed(keyword) {
   const browser = await chromium.launch({ headless: true });
   const { context, page } = await newTikTokPage(browser);
-  const counters = { requestsSeen: 0, jsonResponses: 0 };
-  const discovered = [];
-  const rooms = [];
 
-  attachResponseCapture(page, discovered, rooms, counters);
+  let seed = null;
 
-  await page.goto(liveSearchUrl(keyword), {
-    waitUntil: 'domcontentloaded',
-    timeout: 60000
+  // Intercept the outgoing request before it is sent so we get the full
+  // headers (including Cookie) that the browser would have sent.
+  await page.route('**/api/search/live/**', async (route) => {
+    const request = route.request();
+    if (!seed) {
+      const rawHeaders = await request.headersArray();
+      const headers = {};
+      for (const { name, value } of rawHeaders) {
+        // Skip pseudo-headers and hop-by-hop headers that fetch won't accept.
+        if (!name.startsWith(':') && name.toLowerCase() !== 'content-length') {
+          headers[name] = value;
+        }
+      }
+      seed = { url: request.url(), headers };
+    }
+    await route.continue();
   });
 
-  const popupClosed = await closeLoginPopup(page);
-  const liveTabClicked = await forceLiveSearch(page, keyword);
-  await page.mouse.wheel(0, 8000);
-  await page.waitForTimeout(8000);
+  await page.goto(liveSearchUrl(keyword), { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await closeLoginPopup(page);
+  // Wait for the live-search XHR to fire.
+  await page.waitForTimeout(10000);
   await context.storageState({ path: STORAGE_STATE_PATH });
 
-  const pageDiagnostics = await page.evaluate(extractTikTokPage);
-  const creators = normalizeRenderedCreators(pageDiagnostics);
   const screenshot = await page.screenshot({ fullPage: true, type: 'png' });
   await browser.close();
+
+  return { seed, screenshotBase64: screenshot.toString('base64') };
+}
+
+// Build the URL for a paginated live-search request.
+// We preserve all original query params (device_id, aid, verifyFp, etc.)
+// and only swap the keyword and cursor.
+function buildPageUrl(seedUrl, keyword, cursor) {
+  const u = new URL(seedUrl);
+  u.searchParams.set('keyword', keyword);
+  u.searchParams.set('offset', String(cursor));
+  // Some TikTok API versions use 'cursor' instead of 'offset'.
+  if (u.searchParams.has('cursor')) u.searchParams.set('cursor', String(cursor));
+  return u.toString();
+}
+
+// Parse rooms out of a TikTok live-search API response body.
+// The response shape is typically:
+//   { data: [ { lives: [ <room>, ... ] }, ... ], cursor: N, has_more: 0|1 }
+// but we also fall back to the generic collectRoomObjects walker.
+function extractRoomsFromApiBody(json) {
+  const rooms = [];
+
+  // Primary path: data[].lives[]
+  if (Array.isArray(json?.data)) {
+    for (const item of json.data) {
+      if (Array.isArray(item?.lives)) {
+        for (const live of item.lives) {
+          if (looksLikeRoomObject(live)) rooms.push(normalizeRoom(live, '$.data[].lives[]'));
+        }
+      }
+      // Some responses nest the room directly in data[].
+      if (looksLikeRoomObject(item)) rooms.push(normalizeRoom(item, '$.data[]'));
+    }
+  }
+
+  // Fallback: walk the whole tree.
+  if (rooms.length === 0) collectRoomObjects(json, '$', rooms);
+
+  return rooms;
+}
+
+async function paginateWithFetch(seed, keyword, timeLimitMs = 4 * 60 * 1000) {
+  const allRooms = [];
+  const seen = new Set();
+  const startTime = Date.now();
+  let cursor = 0;
+  let page = 0;
+  let hasMore = true;
+  let consecutiveEmpty = 0;
+
+  while (hasMore && Date.now() - startTime < timeLimitMs) {
+    const url = buildPageUrl(seed.url, keyword, cursor);
+
+    let json;
+    try {
+      const res = await fetch(url, {
+        headers: seed.headers,
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!res.ok) {
+        console.log(`[paginate] HTTP ${res.status} on page ${page}, stopping`);
+        break;
+      }
+      json = await res.json();
+    } catch (err) {
+      console.log(`[paginate] fetch error on page ${page}:`, err.message);
+      break;
+    }
+
+    const rooms = extractRoomsFromApiBody(json);
+    let added = 0;
+    for (const room of rooms) {
+      if (room.roomId && !seen.has(room.roomId)) {
+        seen.add(room.roomId);
+        allRooms.push(room);
+        added++;
+      }
+    }
+
+    console.log(`[paginate] page=${page} cursor=${cursor} rooms_this_page=${rooms.length} added=${added} total=${allRooms.length}`);
+
+    // Advance cursor — TikTok returns the next cursor in the response.
+    const nextCursor = json?.cursor ?? json?.next_cursor ?? null;
+    hasMore = json?.has_more === 1 || json?.has_more === true;
+
+    if (nextCursor !== null && nextCursor !== cursor) {
+      cursor = nextCursor;
+    } else {
+      // No cursor advancement means we've reached the end.
+      break;
+    }
+
+    if (rooms.length === 0) {
+      consecutiveEmpty++;
+      if (consecutiveEmpty >= 3) break;
+    } else {
+      consecutiveEmpty = 0;
+    }
+
+    page++;
+    // Small delay to avoid hammering TikTok.
+    await new Promise((r) => setTimeout(r, 300));
+  }
+
+  return allRooms;
+}
+
+export async function scrapeTikTokLive(keyword) {
+  console.log(`[scrape] capturing API seed for keyword="${keyword}"`);
+  const { seed, screenshotBase64 } = await captureApiSeed(keyword);
+
+  if (!seed) {
+    console.log('[scrape] no API seed captured — TikTok live search XHR was not observed');
+    return {
+      keyword,
+      collected_at: new Date().toISOString(),
+      error: 'No live-search API request was intercepted. TikTok may have blocked the session or the page did not reach the LIVE tab.',
+      roomCount: 0,
+      rooms: [],
+      screenshotBase64
+    };
+  }
+
+  console.log(`[scrape] seed captured, starting pagination`);
+  const rooms = await paginateWithFetch(seed, keyword);
 
   return {
     keyword,
     collected_at: new Date().toISOString(),
-    popupClosed,
-    liveTabClicked,
-    requestsSeen: counters.requestsSeen,
-    jsonResponses: counters.jsonResponses,
-    creatorCount: creators.length,
-    creators,
     roomCount: rooms.length,
-    rooms: rooms.slice(0, 100),
-    discoveredCount: discovered.length,
-    discovered: discovered.slice(0, 25),
-    pageDiagnostics,
-    screenshotBase64: screenshot.toString('base64')
+    rooms,
+    screenshotBase64
   };
 }
