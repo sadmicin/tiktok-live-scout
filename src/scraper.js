@@ -565,6 +565,8 @@ async function captureApiSeed(keyword, log) {
 
   // ── Phase 1: /live discovery page ────────────────────────────────────
   log('[seed] phase 1: /live page');
+  let ssrRooms = [];
+  let ssrInfo = {};
   try {
     await page.goto('https://www.tiktok.com/live', { waitUntil: 'domcontentloaded', timeout: 60000 });
     await closeLoginPopup(page);
@@ -575,33 +577,50 @@ async function captureApiSeed(keyword, log) {
     await page.waitForTimeout(5000);
   } catch (e) { log('[seed] /live error:', e.message); }
 
-  // Inspect the page HTML for SSR-embedded room data and log what we find.
-  const ssrInfo = await page.evaluate(() => {
-    const nextDataEl = document.getElementById('__NEXT_DATA__');
-    const nextDataSnippet = nextDataEl?.textContent?.slice(0, 2000) || null;
-    const liveKeywords = ['user_count','viewer_count','viewerCount','room_id','roomId','liveRoom'];
-    const matchingScripts = [];
-    for (const s of document.querySelectorAll('script')) {
-      const t = s.textContent || '';
-      if (liveKeywords.some(k => t.includes(k))) {
-        matchingScripts.push({ id: s.id || '', length: t.length, snippet: t.slice(0, 500) });
-      }
-    }
+  // Extract the full __UNIVERSAL_DATA_FOR_REHYDRATION__ JSON (TikTok SSR data).
+  const universalJson = await page.evaluate(() => {
+    const el = document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__');
+    return el?.textContent || null;
+  });
+
+  ssrInfo = await page.evaluate(() => {
     return {
       title: document.title,
       url: location.href,
       bodyLength: document.body?.innerHTML?.length || 0,
-      hasNextData: !!nextDataEl,
-      nextDataSnippet,
-      matchingScripts: matchingScripts.slice(0, 5)
     };
   });
-  log('[seed] page title:', ssrInfo.title, '| bodyLen:', ssrInfo.bodyLength,
-    '| hasNextData:', ssrInfo.hasNextData, '| liveScripts:', ssrInfo.matchingScripts.length);
-  if (ssrInfo.nextDataSnippet) log('[seed] __NEXT_DATA__ snippet:', ssrInfo.nextDataSnippet.slice(0, 400));
-  for (const s of ssrInfo.matchingScripts) {
-    log('[seed] live-keyword script id=' + s.id + ' len=' + s.length + ':', s.snippet.slice(0, 200));
+
+  if (universalJson) {
+    try {
+      const universal = JSON.parse(universalJson);
+      const scopes = universal.__DEFAULT_SCOPE__ || {};
+      const scopeKeys = Object.keys(scopes);
+      log('[ssr] __UNIVERSAL_DATA_FOR_REHYDRATION__ scopes:', scopeKeys.join(', '));
+
+      for (const [key, value] of Object.entries(scopes)) {
+        const found = collectRoomObjects(value);
+        if (found.length > 0) {
+          log('[ssr] found', found.length, 'rooms in scope:', key);
+          ssrRooms = ssrRooms.concat(found);
+        } else {
+          // Log the top-level keys of each scope for diagnosis.
+          const subkeys = typeof value === 'object' && value ? Object.keys(value).slice(0, 8).join(',') : '';
+          log('[ssr] scope', key, '— keys:', subkeys);
+        }
+      }
+      log('[ssr] total SSR rooms found:', ssrRooms.length);
+      ssrInfo.scopeKeys = scopeKeys;
+      ssrInfo.ssrRoomCount = ssrRooms.length;
+    } catch (e) {
+      log('[ssr] parse error:', e.message);
+      ssrInfo.ssrParseError = e.message;
+    }
+  } else {
+    log('[ssr] no __UNIVERSAL_DATA_FOR_REHYDRATION__ found');
+    ssrInfo.ssrParseError = 'no script element found';
   }
+  log('[seed] page title:', ssrInfo.title, '| bodyLen:', ssrInfo.bodyLength);
 
   // ── Phase 2: search page → navigate via the live <a> href directly ──
   if (!seed) {
@@ -635,13 +654,13 @@ async function captureApiSeed(keyword, log) {
     }
   }
 
-  log('[seed] done. url:', page.url(), '| seed:', !!seed, '| api calls logged:', apiLog.length);
+  log('[seed] done. url:', page.url(), '| seed:', !!seed, '| ssrRooms:', ssrRooms.length, '| api calls:', apiLog.length);
 
   await context.storageState({ path: STORAGE_STATE_PATH });
   const screenshot = await page.screenshot({ fullPage: true, type: 'png' });
   await browser.close();
 
-  return { seed, screenshotBase64: screenshot.toString('base64'), apiLog, ssrInfo };
+  return { seed, ssrRooms, screenshotBase64: screenshot.toString('base64'), apiLog, ssrInfo };
 }
 
 // Build the URL for a paginated live-search request.
@@ -753,16 +772,19 @@ export async function scrapeTikTokLive(keyword) {
   const { log, lines: runLog } = logger;
 
   log(`[scrape] capturing API seed for keyword="${keyword}"`);
-  const { seed, screenshotBase64, apiLog, ssrInfo } = await captureApiSeed(keyword, log);
+  const { seed, ssrRooms, screenshotBase64, apiLog, ssrInfo } = await captureApiSeed(keyword, log);
 
-  if (!seed) {
-    log('[scrape] no API seed captured — TikTok live search XHR was not observed');
+  // Mode A: we captured a live-search API seed → paginate with fetch.
+  if (seed) {
+    log(`[scrape] seed captured, starting fetch pagination`);
+    const rooms = await paginateWithFetch(seed, keyword);
     return {
       keyword,
       collected_at: new Date().toISOString(),
-      error: 'No live-search API request was intercepted.',
-      roomCount: 0,
-      rooms: [],
+      mode: 'api-pagination',
+      seedUrl: seed.url.split('?')[0],
+      roomCount: rooms.length,
+      rooms,
       apiLog,
       ssrInfo,
       runLog,
@@ -770,15 +792,31 @@ export async function scrapeTikTokLive(keyword) {
     };
   }
 
-  log(`[scrape] seed captured (strictRooms=${seed.strictRooms}, permissive=${seed.permissive}), starting pagination`);
-  const rooms = await paginateWithFetch(seed, keyword);
+  // Mode B: SSR rooms extracted from __UNIVERSAL_DATA_FOR_REHYDRATION__.
+  if (ssrRooms.length > 0) {
+    log(`[scrape] using ${ssrRooms.length} rooms from SSR page data`);
+    return {
+      keyword,
+      collected_at: new Date().toISOString(),
+      mode: 'ssr-extraction',
+      roomCount: ssrRooms.length,
+      rooms: ssrRooms,
+      apiLog,
+      ssrInfo,
+      runLog,
+      screenshotBase64
+    };
+  }
 
+  // Mode C: nothing worked.
+  log('[scrape] no rooms found via any method');
   return {
     keyword,
     collected_at: new Date().toISOString(),
-    seedUrl: seed.url.split('?')[0],
-    roomCount: rooms.length,
-    rooms,
+    mode: 'failed',
+    error: 'No rooms found. Check runLog and ssrInfo for diagnosis.',
+    roomCount: 0,
+    rooms: [],
     apiLog,
     ssrInfo,
     runLog,
