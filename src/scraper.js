@@ -219,6 +219,29 @@ export async function scrapeTikTokLive(keyword) {
     }
     await page.waitForTimeout(2000);
 
+    // Diagnose what's actually on the page
+    const pageDiag = await page.evaluate(() => {
+      const allLinks = Array.from(document.querySelectorAll('a[href]'));
+      const hrefs = [...new Set(allLinks.map(a => a.href.replace(/\?.*$/, '')))].slice(0, 60);
+      const bodyText = (document.body?.innerText || '').slice(0, 1500);
+      return {
+        url: location.href,
+        title: document.title,
+        anchorCount: allLinks.length,
+        hrefs,
+        bodyTextLength: document.body?.innerText?.length || 0,
+        bodyTextSample: bodyText,
+        hasLiveHrefs: allLinks.some(a => /\/@[^/]+\/live/.test(a.href)),
+        hasUserHrefs: allLinks.some(a => /\/@[^/]+$/.test(a.href)),
+      };
+    });
+    log('[diag] url:', pageDiag.url);
+    log('[diag] title:', pageDiag.title);
+    log('[diag] anchors:', pageDiag.anchorCount, '| hasLiveHrefs:', pageDiag.hasLiveHrefs, '| hasUserHrefs:', pageDiag.hasUserHrefs);
+    log('[diag] bodyLen:', pageDiag.bodyTextLength);
+    log('[diag] bodyText:', pageDiag.bodyTextSample.slice(0, 800));
+    log('[diag] hrefs:', pageDiag.hrefs.slice(0, 30).join(' | '));
+
     const rooms = await scrollAndCollect(page, log, 12);
 
     // Save updated guest state
