@@ -212,34 +212,24 @@ export async function scrapeTikTokLive(keyword) {
     await dismissLoginPopup(page);
     await page.waitForTimeout(3000);
 
-    // Step 2: Click the LIVE tab
-    log('[scrape] clicking LIVE tab...');
+    // Step 2: Click the search-results LIVE tab (href contains /search/live, not the nav /live link)
+    log('[scrape] clicking search LIVE tab...');
     let liveTabClicked = false;
-    try {
-      // Try data-e2e attribute first, then text content match
-      const liveTab = page.locator('[data-e2e="search-tab-live"], [data-testid="search-tab-live"]').first();
-      const byText = page.getByRole('link', { name: /^live$/i });
-      const byTabText = page.locator('a, button, [role="tab"]').filter({ hasText: /^LIVE$/i });
 
-      for (const loc of [liveTab, byText, byTabText]) {
-        try {
-          await loc.click({ timeout: 5000 });
-          liveTabClicked = true;
-          log('[scrape] LIVE tab clicked');
-          break;
-        } catch {}
-      }
+    // Best: find anchor whose href points to /search/live
+    try {
+      const liveTabLink = page.locator('a[href*="/search/live"]').first();
+      await liveTabLink.click({ timeout: 8000 });
+      liveTabClicked = true;
+      log('[scrape] clicked /search/live anchor');
     } catch {}
 
     if (!liveTabClicked) {
-      // Fallback: find any link whose text is exactly "LIVE" and click it
-      liveTabClicked = await page.evaluate(() => {
-        const els = Array.from(document.querySelectorAll('a, button, [role="tab"]'));
-        const el = els.find(e => e.textContent?.trim() === 'LIVE');
-        if (el) { el.click(); return true; }
-        return false;
-      });
-      log('[scrape] LIVE tab JS click:', liveTabClicked);
+      // Fallback: navigate directly (SPA may handle client-side route correctly)
+      const liveUrl = `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
+      log('[scrape] fallback: goto', liveUrl);
+      await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      liveTabClicked = true;
     }
 
     await page.waitForTimeout(4000);
