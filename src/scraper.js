@@ -488,12 +488,21 @@ async function extractSeedHeaders(request) {
   return headers;
 }
 
+// Does this JSON body contain live-room-like data under any field naming scheme?
+function looksLivish(json, text) {
+  if (!json || typeof json !== 'object') return false;
+  // Strict: actual room objects we know how to normalize.
+  if (collectRoomObjects(json).length > 0) return true;
+  // Permissive: any JSON that mentions viewer counts and rooms.
+  const hasViewer = /viewer_count|user_count|viewerCount|watch_cnt/i.test(text);
+  const hasRoom   = /room_id|roomId|id_str/i.test(text);
+  const hasUser   = /unique_id|uniqueId|display_id|nickname/i.test(text);
+  return hasViewer && hasRoom && hasUser;
+}
+
 // Capture a live-room API seed from the browser.
-// Strategy A: generic /search page → expand LIVE nav section.
-// Strategy B (fallback): /live discovery page.
-// We accept any JSON response that contains actual room objects, not
-// just the specific /api/search/live/ URL, because TikTok varies endpoint
-// paths across sessions and regions.
+// We log every JSON API response for diagnosis, then accept the first one
+// that looks like it contains live-room data (strict or permissive match).
 async function captureApiSeed(keyword) {
   // Always start with a fresh guest session to avoid stale redirect state.
   if (hasGuestState()) {
@@ -504,100 +513,89 @@ async function captureApiSeed(keyword) {
   const { context, page } = await newTikTokPage(browser);
 
   let seed = null;
+  const apiLog = [];
 
   page.on('response', async (response) => {
-    if (seed) return;
     const url = response.url();
-    // Skip non-API URLs and noise.
     if (!url.includes('/api/') && !url.includes('/webcast/')) return;
-    if (/log|monitor|analytics|sentry|report/i.test(url)) return;
-
+    if (/log|monitor|analytics|sentry|report|push_check/i.test(url)) return;
     try {
       const ct = response.headers()['content-type'] || '';
       if (!ct.includes('json')) return;
       const text = await response.text();
+      if (text.length < 50) return;
       let json;
       try { json = JSON.parse(text); } catch { return; }
 
-      // Check the response contains real live-room objects.
-      const rooms = collectRoomObjects(json);
-      if (rooms.length === 0) return;
+      const keys = Object.keys(json).slice(0, 12).join(',');
+      const strictRooms = collectRoomObjects(json).length;
+      const permissive  = looksLivish(json, text);
+      const entry = { url: url.split('?')[0], size: text.length, keys, strictRooms, permissive };
+      apiLog.push(entry);
+      console.log('[api]', entry.url, '| keys:', keys, '| rooms:', strictRooms, '| live-ish:', permissive);
 
-      const headers = await extractSeedHeaders(response.request());
-      seed = { url: response.request().url(), headers };
-      console.log('[seed] captured:', url.split('?')[0], '— rooms in response:', rooms.length);
+      if (!seed && permissive) {
+        const headers = await extractSeedHeaders(response.request());
+        seed = { url: response.request().url(), headers, strictRooms, permissive: true };
+        console.log('[seed] captured:', url.split('?')[0], 'strict rooms:', strictRooms);
+      }
     } catch {}
   });
 
-  // ── Strategy A: generic search page ──────────────────────────────────
-  const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
-  await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.waitForTimeout(2000);
-  await closeLoginPopup(page);
-  await page.waitForTimeout(3000);
-  console.log('[seed] landed on:', page.url());
+  // ── Phase 1: /live discovery page (works for guests, shows live rooms) ──
+  console.log('[seed] phase 1: /live page');
+  try {
+    await page.goto('https://www.tiktok.com/live', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await closeLoginPopup(page);
+    await page.waitForTimeout(3000);
+    await page.mouse.wheel(0, 3000);
+    await page.waitForTimeout(5000);
+    await page.mouse.wheel(0, 3000);
+    await page.waitForTimeout(5000);
+  } catch (e) { console.log('[seed] /live error:', e.message); }
 
-  // Try to activate the LIVE section. TikTok renders it as a collapsible
-  // nav wrapper (class DivLiveNavWrapper) whose inner div has aria-expanded.
-  // Click the inner element, not the outer wrapper.
-  const clickResult = await page.evaluate(() => {
-    // 1. Click the aria-expanded child inside the live nav wrapper.
-    const wrapper = document.querySelector('[class*="DivLiveNavWrapper"], [class*="LiveNavWrapper"]');
-    if (wrapper) {
-      const inner = wrapper.querySelector('[aria-expanded], a, button, [role="button"]');
-      const target = inner || wrapper;
-      target.click();
-      return 'liveNavWrapper: ' + target.outerHTML.slice(0, 120);
-    }
-    // 2. Find any visible link whose href contains /search/live.
-    for (const a of document.querySelectorAll('a')) {
-      if (a.href?.includes('/search/live') && a.offsetParent !== null) {
-        a.click();
-        return 'href click: ' + a.outerHTML.slice(0, 120);
-      }
-    }
-    // 3. Click the leaf element whose sole text is "LIVE".
-    for (const el of document.querySelectorAll('*')) {
-      if (el.childElementCount === 0 && el.textContent?.trim() === 'LIVE' && el.offsetParent !== null) {
-        el.click();
-        return 'text=LIVE: ' + el.outerHTML.slice(0, 120);
-      }
-    }
-    return null;
-  });
-  console.log('[seed] click result:', clickResult || 'nothing clicked');
-  await page.waitForTimeout(8000);
-
-  // ── Strategy B: /live discovery page ─────────────────────────────────
+  // ── Phase 2: search page → navigate via the live <a> href directly ──
   if (!seed) {
-    console.log('[seed] no rooms yet — trying /live discovery page');
+    console.log('[seed] phase 2: search → live href navigation');
+    const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
     try {
-      await page.goto('https://www.tiktok.com/live', { waitUntil: 'domcontentloaded', timeout: 40000 });
+      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForTimeout(2000);
       await closeLoginPopup(page);
-      await page.waitForTimeout(10000);
-    } catch (e) {
-      console.log('[seed] /live navigation error:', e.message);
+      await page.waitForTimeout(2000);
+    } catch (e) { console.log('[seed] search nav error:', e.message); }
+
+    // Extract the href from the <a> inside the live nav wrapper and navigate to it
+    // directly — bypasses the aria-haspopup="dialog" wrapper event handler.
+    const liveHref = await page.evaluate(() => {
+      const wrapper = document.querySelector('[class*="DivLiveNavWrapper"], [class*="LiveNavWrapper"], [aria-haspopup="dialog"]');
+      const a = wrapper?.querySelector('a[href]');
+      return a?.href || null;
+    });
+
+    if (liveHref) {
+      console.log('[seed] navigating directly to:', liveHref);
+      try {
+        await page.goto(liveHref, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(8000);
+      } catch (e) { console.log('[seed] live href nav error:', e.message); }
+    } else {
+      console.log('[seed] no live href found in page');
+      // Last resort: direct URL
+      try {
+        await page.goto(liveSearchUrl(keyword), { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(8000);
+      } catch (e) { console.log('[seed] /search/live direct error:', e.message); }
     }
   }
 
-  // ── Strategy C: /search/live direct ──────────────────────────────────
-  if (!seed) {
-    console.log('[seed] still no rooms — trying /search/live direct');
-    try {
-      await page.goto(liveSearchUrl(keyword), { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(8000);
-    } catch (e) {
-      console.log('[seed] /search/live error:', e.message);
-    }
-  }
-
-  console.log('[seed] done. url:', page.url(), '| seed captured:', !!seed);
+  console.log('[seed] done. url:', page.url(), '| seed:', !!seed, '| api calls logged:', apiLog.length);
 
   await context.storageState({ path: STORAGE_STATE_PATH });
   const screenshot = await page.screenshot({ fullPage: true, type: 'png' });
   await browser.close();
 
-  return { seed, screenshotBase64: screenshot.toString('base64') };
+  return { seed, screenshotBase64: screenshot.toString('base64'), apiLog };
 }
 
 // Build the URL for a paginated live-search request.
@@ -706,28 +704,31 @@ async function paginateWithFetch(seed, keyword, timeLimitMs = 4 * 60 * 1000) {
 
 export async function scrapeTikTokLive(keyword) {
   console.log(`[scrape] capturing API seed for keyword="${keyword}"`);
-  const { seed, screenshotBase64 } = await captureApiSeed(keyword);
+  const { seed, screenshotBase64, apiLog } = await captureApiSeed(keyword);
 
   if (!seed) {
     console.log('[scrape] no API seed captured — TikTok live search XHR was not observed');
     return {
       keyword,
       collected_at: new Date().toISOString(),
-      error: 'No live-search API request was intercepted. TikTok may have blocked the session or the page did not reach the LIVE tab.',
+      error: 'No live-search API request was intercepted.',
       roomCount: 0,
       rooms: [],
+      apiLog,
       screenshotBase64
     };
   }
 
-  console.log(`[scrape] seed captured, starting pagination`);
+  console.log(`[scrape] seed captured (strictRooms=${seed.strictRooms}, permissive=${seed.permissive}), starting pagination`);
   const rooms = await paginateWithFetch(seed, keyword);
 
   return {
     keyword,
     collected_at: new Date().toISOString(),
+    seedUrl: seed.url.split('?')[0],
     roomCount: rooms.length,
     rooms,
+    apiLog,
     screenshotBase64
   };
 }
