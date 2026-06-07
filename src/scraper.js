@@ -204,20 +204,46 @@ export async function scrapeTikTokLive(keyword) {
     }
 
     const page = await context.newPage();
-    const url = liveSearchUrl(keyword);
-    log(`[scrape] navigating to ${url}`);
 
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    // Step 1: Land on the search page (not /search/live directly — TikTok redirects that)
+    const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
+    log(`[scrape] navigating to search page: ${searchUrl}`);
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await dismissLoginPopup(page);
+    await page.waitForTimeout(3000);
 
-    // Wait for cards to appear
-    log('[scrape] waiting for live cards to render...');
+    // Step 2: Click the LIVE tab
+    log('[scrape] clicking LIVE tab...');
+    let liveTabClicked = false;
     try {
-      await page.waitForSelector('a[href*="/live"]', { timeout: 15000 });
-    } catch {
-      log('[scrape] no live links appeared within 15s, proceeding anyway');
+      // Try data-e2e attribute first, then text content match
+      const liveTab = page.locator('[data-e2e="search-tab-live"], [data-testid="search-tab-live"]').first();
+      const byText = page.getByRole('link', { name: /^live$/i });
+      const byTabText = page.locator('a, button, [role="tab"]').filter({ hasText: /^LIVE$/i });
+
+      for (const loc of [liveTab, byText, byTabText]) {
+        try {
+          await loc.click({ timeout: 5000 });
+          liveTabClicked = true;
+          log('[scrape] LIVE tab clicked');
+          break;
+        } catch {}
+      }
+    } catch {}
+
+    if (!liveTabClicked) {
+      // Fallback: find any link whose text is exactly "LIVE" and click it
+      liveTabClicked = await page.evaluate(() => {
+        const els = Array.from(document.querySelectorAll('a, button, [role="tab"]'));
+        const el = els.find(e => e.textContent?.trim() === 'LIVE');
+        if (el) { el.click(); return true; }
+        return false;
+      });
+      log('[scrape] LIVE tab JS click:', liveTabClicked);
     }
-    await page.waitForTimeout(2000);
+
+    await page.waitForTimeout(4000);
+    log('[scrape] current url after tab click:', page.url());
 
     // Diagnose what's actually on the page
     const pageDiag = await page.evaluate(() => {
