@@ -228,6 +228,14 @@ async function newTikTokPage(browser) {
     ...(hasGuestState() ? { storageState: STORAGE_STATE_PATH } : {})
   });
 
+  // Remove the navigator.webdriver flag that Playwright sets — TikTok checks
+  // for this and may serve a bot-shell page when it detects automation.
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    // Spoof a minimal chrome runtime so TikTok's browser-check passes.
+    Object.defineProperty(window, 'chrome', { get: () => ({ runtime: {} }) });
+  });
+
   if (!hasGuestState()) {
     console.log('Creating TikTok guest session...');
     const warmup = await context.newPage();
@@ -390,7 +398,7 @@ function attachResponseCapture(page, discovered, rooms, counters) {
 }
 
 export async function debugTikTokPage(keyword = 'battle') {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, args: ['--disable-blink-features=AutomationControlled'] });
   const { context, page } = await newTikTokPage(browser);
   const url = liveSearchUrl(keyword);
   const responses = [];
@@ -509,7 +517,7 @@ async function captureApiSeed(keyword) {
     try { fs.unlinkSync(STORAGE_STATE_PATH); } catch {}
   }
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, args: ['--disable-blink-features=AutomationControlled'] });
   const { context, page } = await newTikTokPage(browser);
 
   let seed = null;
@@ -542,7 +550,7 @@ async function captureApiSeed(keyword) {
     } catch {}
   });
 
-  // ── Phase 1: /live discovery page (works for guests, shows live rooms) ──
+  // ── Phase 1: /live discovery page ────────────────────────────────────
   console.log('[seed] phase 1: /live page');
   try {
     await page.goto('https://www.tiktok.com/live', { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -553,6 +561,35 @@ async function captureApiSeed(keyword) {
     await page.mouse.wheel(0, 3000);
     await page.waitForTimeout(5000);
   } catch (e) { console.log('[seed] /live error:', e.message); }
+
+  // Regardless of API seed, inspect the page HTML for SSR-embedded room data.
+  const ssrInfo = await page.evaluate(() => {
+    const nextDataEl = document.getElementById('__NEXT_DATA__');
+    const nextDataSnippet = nextDataEl?.textContent?.slice(0, 2000) || null;
+
+    const liveKeywords = ['user_count','viewer_count','viewerCount','room_id','roomId','liveRoom'];
+    const matchingScripts = [];
+    for (const s of document.querySelectorAll('script')) {
+      const t = s.textContent || '';
+      if (liveKeywords.some(k => t.includes(k))) {
+        matchingScripts.push({ id: s.id || '', length: t.length, snippet: t.slice(0, 500) });
+      }
+    }
+    return {
+      title: document.title,
+      url: location.href,
+      bodyLength: document.body?.innerHTML?.length || 0,
+      hasNextData: !!nextDataEl,
+      nextDataSnippet,
+      matchingScripts: matchingScripts.slice(0, 5)
+    };
+  });
+  console.log('[seed] page title:', ssrInfo.title, '| bodyLen:', ssrInfo.bodyLength,
+    '| hasNextData:', ssrInfo.hasNextData, '| liveScripts:', ssrInfo.matchingScripts.length);
+  if (ssrInfo.nextDataSnippet) console.log('[seed] __NEXT_DATA__ snippet:', ssrInfo.nextDataSnippet.slice(0, 400));
+  for (const s of ssrInfo.matchingScripts) {
+    console.log('[seed] live-keyword script id=' + s.id + ' len=' + s.length + ':', s.snippet.slice(0, 200));
+  }
 
   // ── Phase 2: search page → navigate via the live <a> href directly ──
   if (!seed) {
@@ -565,23 +602,20 @@ async function captureApiSeed(keyword) {
       await page.waitForTimeout(2000);
     } catch (e) { console.log('[seed] search nav error:', e.message); }
 
-    // Extract the href from the <a> inside the live nav wrapper and navigate to it
-    // directly — bypasses the aria-haspopup="dialog" wrapper event handler.
     const liveHref = await page.evaluate(() => {
       const wrapper = document.querySelector('[class*="DivLiveNavWrapper"], [class*="LiveNavWrapper"], [aria-haspopup="dialog"]');
       const a = wrapper?.querySelector('a[href]');
       return a?.href || null;
     });
 
-    if (liveHref) {
-      console.log('[seed] navigating directly to:', liveHref);
+    if (liveHref && !liveHref.includes('/live')) {
+      console.log('[seed] navigating directly to live href:', liveHref);
       try {
         await page.goto(liveHref, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForTimeout(8000);
       } catch (e) { console.log('[seed] live href nav error:', e.message); }
     } else {
-      console.log('[seed] no live href found in page');
-      // Last resort: direct URL
+      console.log('[seed] live href points to /live (already tried) or missing:', liveHref);
       try {
         await page.goto(liveSearchUrl(keyword), { waitUntil: 'domcontentloaded', timeout: 30000 });
         await page.waitForTimeout(8000);
