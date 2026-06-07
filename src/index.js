@@ -1,5 +1,6 @@
 import express from 'express';
 import fs from 'fs';
+import net from 'net';
 import { scrapeTikTokLive, debugTikTokPage } from './scraper.js';
 import { commitJsonToGitHub, commitImageToGitHub } from './githubLogger.js';
 
@@ -88,6 +89,42 @@ app.get('/debug-page', async (_req, res) => {
 app.get('/debug-screenshot', (_req,res)=>{
   if (!latestDebug?.screenshotBase64) return res.status(404).send('Run debug first');
   res.type('png').send(Buffer.from(latestDebug.screenshotBase64,'base64'));
+});
+
+app.get('/proxy-test', (_req, res) => {
+  const server = process.env.PROXY_SERVER || '';
+  const [host, portStr] = server.split(':');
+  const proxyPort = parseInt(portStr || '22225', 10);
+  const username = process.env.PROXY_USERNAME || '';
+  const password = process.env.PROXY_PASSWORD || '';
+  const auth = Buffer.from(`${username}:${password}`).toString('base64');
+
+  const result = { server, host, port: proxyPort, connectResponse: null, error: null };
+
+  const socket = net.createConnection({ host, port: proxyPort }, () => {
+    const req = [
+      `CONNECT tiktok.com:443 HTTP/1.1`,
+      `Host: tiktok.com:443`,
+      `Proxy-Authorization: Basic ${auth}`,
+      ``,
+      ``
+    ].join('\r\n');
+    socket.write(req);
+  });
+
+  let data = '';
+  socket.setTimeout(10000);
+  socket.on('data', chunk => {
+    data += chunk.toString();
+    // First line of response is enough
+    if (data.includes('\r\n')) {
+      result.connectResponse = data.split('\r\n')[0];
+      socket.destroy();
+    }
+  });
+  socket.on('timeout', () => { result.error = 'timeout'; socket.destroy(); });
+  socket.on('error', err => { result.error = err.message; });
+  socket.on('close', () => res.json(result));
 });
 
 app.listen(port,()=>{
