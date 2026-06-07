@@ -1,10 +1,10 @@
 {
-  "created_at": "2026-06-07T20:47:46.883Z",
+  "created_at": "2026-06-07T20:52:54.984Z",
   "commit": "d26bd1e3c2ec32484e58d99bf8a86a37af49bc62",
   "results": [
     {
       "keyword": "Live",
-      "collected_at": "2026-06-07T20:47:46.883Z",
+      "collected_at": "2026-06-07T20:52:54.984Z",
       "error": "No live-search API request was intercepted. TikTok may have blocked the session or the page did not reach the LIVE tab.",
       "roomCount": 0,
       "rooms": [],
