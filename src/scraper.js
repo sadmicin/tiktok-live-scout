@@ -505,6 +505,17 @@ async function captureApiSeed(keyword) {
 
   await page.goto(liveSearchUrl(keyword), { waitUntil: 'domcontentloaded', timeout: 60000 });
   await closeLoginPopup(page);
+
+  // TikTok often redirects guest sessions to /search/user. Explicitly find
+  // and click the LIVE tab to ensure the live-search XHR fires.
+  try {
+    const liveTab = page.locator('a[href*="/search/live"], [data-e2e*="live"], a:has-text("LIVE"), a:has-text("Live")').first();
+    await liveTab.click({ timeout: 8000 });
+    console.log('[seed] clicked LIVE tab');
+  } catch {
+    console.log('[seed] could not find LIVE tab, current url:', page.url());
+  }
+
   // Wait for the live-search XHR to fire.
   await page.waitForTimeout(10000);
   await context.storageState({ path: STORAGE_STATE_PATH });
