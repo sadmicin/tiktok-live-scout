@@ -30,6 +30,60 @@ function liveSearchUrl(keyword) {
   return `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
 }
 
+function parseTikTokCount(value) {
+  if (!value) return 0;
+  const cleaned = String(value).trim().replace(/,/g, '');
+  const match = cleaned.match(/^([0-9]+(?:\.[0-9]+)?)([KMB])?$/i);
+  if (!match) return 0;
+
+  const number = Number(match[1]);
+  const suffix = (match[2] || '').toUpperCase();
+  const multiplier = suffix === 'B' ? 1000000000 : suffix === 'M' ? 1000000 : suffix === 'K' ? 1000 : 1;
+  return Math.round(number * multiplier);
+}
+
+function normalizeRenderedCreators(pageDiagnostics) {
+  const creators = pageDiagnostics?.creators || [];
+  const normalized = [];
+  const seen = new Set();
+
+  for (const creator of creators) {
+    const username = creator.username || '';
+    if (!username || seen.has(username)) continue;
+
+    const lines = String(creator.text || '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const usernameIndex = lines.findIndex((line) => line === username);
+    const localLines = usernameIndex >= 0 ? lines.slice(Math.max(0, usernameIndex - 2), usernameIndex + 8) : lines;
+    const nickname = usernameIndex > 0 ? lines[usernameIndex - 1] : username;
+    const followersIndex = localLines.findIndex((line) => /^Followers$/i.test(line));
+    const likesIndex = localLines.findIndex((line) => /^Likes$/i.test(line));
+    const followersText = followersIndex > 0 ? localLines[followersIndex - 1] : null;
+    const likesText = likesIndex > 0 ? localLines[likesIndex - 1] : null;
+    const beforeUsername = usernameIndex >= 0 ? lines.slice(Math.max(0, usernameIndex - 4), usernameIndex + 1) : [];
+    const afterUsername = usernameIndex >= 0 ? lines.slice(usernameIndex, usernameIndex + 8) : [];
+
+    seen.add(username);
+    normalized.push({
+      username,
+      nickname,
+      followersText,
+      followers: parseTikTokCount(followersText),
+      likesText,
+      likes: parseTikTokCount(likesText),
+      isLive: beforeUsername.includes('LIVE') || afterUsername.includes('LIVE'),
+      profileUrl: creator.profileUrl || `https://www.tiktok.com/@${username}`,
+      liveUrl: `https://www.tiktok.com/@${username}/live`,
+      rawText: creator.text || ''
+    });
+  }
+
+  return normalized;
+}
+
 function firstUrl(imageObject) {
   return imageObject?.url_list?.[0] || imageObject?.urls?.[0] || null;
 }
@@ -383,6 +437,7 @@ export async function debugTikTokPage(keyword = 'battle') {
   }
 
   const diagnostics = await page.evaluate(extractTikTokPage);
+  const creators = normalizeRenderedCreators(diagnostics);
   const cookies = await context.cookies();
   const screenshot = await page.screenshot({ fullPage: true, type: 'png' });
   await browser.close();
@@ -396,6 +451,8 @@ export async function debugTikTokPage(keyword = 'battle') {
     liveTabClicked,
     requestsSeen: counters.requestsSeen,
     jsonResponses: counters.jsonResponses,
+    creatorCount: creators.length,
+    creators,
     roomCount: rooms.length,
     rooms: rooms.slice(0, 100),
     discoveredCount: discovered.length,
@@ -441,6 +498,7 @@ export async function scrapeTikTokLive(keyword) {
   await context.storageState({ path: STORAGE_STATE_PATH });
 
   const pageDiagnostics = await page.evaluate(extractTikTokPage);
+  const creators = normalizeRenderedCreators(pageDiagnostics);
   const screenshot = await page.screenshot({ fullPage: true, type: 'png' });
   await browser.close();
 
@@ -451,6 +509,8 @@ export async function scrapeTikTokLive(keyword) {
     liveTabClicked,
     requestsSeen: counters.requestsSeen,
     jsonResponses: counters.jsonResponses,
+    creatorCount: creators.length,
+    creators,
     roomCount: rooms.length,
     rooms: rooms.slice(0, 100),
     discoveredCount: discovered.length,
