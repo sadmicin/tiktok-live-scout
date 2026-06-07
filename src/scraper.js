@@ -57,6 +57,7 @@ async function launchBrowser() {
       '--disable-setuid-sandbox',
       '--disable-blink-features=AutomationControlled',
       '--disable-dev-shm-usage',
+      '--ignore-certificate-errors',
     ],
     ...(proxyUrl ? {
       proxy: {
