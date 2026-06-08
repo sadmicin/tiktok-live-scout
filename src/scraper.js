@@ -394,6 +394,37 @@ export async function scrapeTikTokLive(keyword) {
     log('[fetch-api] diag:', diagVal);
     log('[fetch-api] rooms found:', fetchedRooms.length);
 
+    // Fetch images as base64 from within the page (same-origin cookies bypass CDN signing)
+    if (fetchedRooms.length > 0) {
+      const imageUrls = fetchedRooms.map(r => ({ snapshot: r.streamSnapshot || null, avatar: r.avatar || null }));
+      const imageData = await page.evaluate(async (urlList) => {
+        async function toBase64(url) {
+          if (!url) return null;
+          try {
+            const res = await fetch(url, { credentials: 'include' });
+            if (!res.ok) return null;
+            const buf = await res.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            let bin = '';
+            for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+            const mime = res.headers.get('content-type') || 'image/jpeg';
+            return `data:${mime};base64,` + btoa(bin);
+          } catch { return null; }
+        }
+        return Promise.all(urlList.map(async ({ snapshot, avatar }) => ({
+          snapshot: await toBase64(snapshot),
+          avatar: await toBase64(avatar),
+        })));
+      }, imageUrls);
+
+      for (let i = 0; i < fetchedRooms.length; i++) {
+        if (imageData[i]?.snapshot) fetchedRooms[i].streamSnapshotBase64 = imageData[i].snapshot;
+        if (imageData[i]?.avatar) fetchedRooms[i].avatarBase64 = imageData[i].avatar;
+      }
+      const embedded = imageData.filter(x => x?.snapshot).length;
+      log(`[images] embedded ${embedded}/${fetchedRooms.length} snapshots as base64`);
+    }
+
     const domRooms = fetchedRooms.length > 0 ? [] : await scrollAndCollect(page, log, 12);
     const rooms = fetchedRooms.length > 0 ? fetchedRooms : (apiRooms.length > 0 ? apiRooms : domRooms);
     log(`[scrape] fetchedRooms=${fetchedRooms.length} apiRooms=${apiRooms.length} domRooms=${domRooms.length}`);
