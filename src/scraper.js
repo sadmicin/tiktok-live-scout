@@ -1,9 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { chromium } from 'playwright-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-
-chromium.use(StealthPlugin());
+import { chromium } from 'rebrowser-playwright';
 
 function makeLogger() {
   const lines = [];
