@@ -311,12 +311,15 @@ page.on('response', async (response) => {
     // Check for TikTok's X-Bogus/signing globals — they load even on blank pages
     const signingInfo = await page.evaluate(() => {
       const keys = Object.keys(window);
-      const relevant = keys.filter(k => /bogus|acrawl|sign|xbogus|byted|msdk|tiktok/i.test(k));
+      const relevant = keys.filter(k => /bogus|acrawl|sign|xbogus|byted|msdk|tiktok|webpack/i.test(k));
       const hasByted = typeof window.byted_acrawler !== 'undefined';
       const bytedKeys = hasByted ? Object.keys(window.byted_acrawler) : [];
-      return { relevant, hasByted, bytedKeys };
+      // Check Next.js / webpack chunk globals TikTok uses
+      const webpackKey = keys.find(k => k.startsWith('webpackChunk'));
+      const hasNextData = typeof window.__NEXT_DATA__ !== 'undefined';
+      return { relevant, hasByted, bytedKeys, webpackKey: webpackKey || null, hasNextData };
     });
-    log(`[signing] relevant globals: ${signingInfo.relevant.join(',')} hasByted=${signingInfo.hasByted} bytedKeys=${signingInfo.bytedKeys.join(',')}`);
+    log(`[signing] relevant=${signingInfo.relevant.join(',')} hasByted=${signingInfo.hasByted} webpack=${signingInfo.webpackKey} nextData=${signingInfo.hasNextData}`);
 
     const MAX_ROOMS = 200;
     const MAX_PAGES = 8;
@@ -367,10 +370,11 @@ page.on('response', async (response) => {
             const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
             if (!res.ok) return { error: res.status };
             const json = await res.json();
-            return { ok: true, hasMore: json?.has_more, cursor: json?.cursor ?? null, data: json?.data || [] };
+            return { ok: true, hasMore: json?.has_more, cursor: json?.cursor ?? null, data: json?.data || [], finalUrl: res.url };
           } catch (e) { return { error: String(e) }; }
         }, { fp: fetchParams, off: offset });
         if (result.error) { log(`[fetch] offset=${offset} error=${result.error}`); break; }
+        if (p === 0) log(`[fetch] page1 finalUrl=${result.finalUrl?.slice(0, 250)}`);
         const added = parseItemsIntoIntercepted(result.data || [], 'fetch');
         log(`[fetch] offset=${offset}: +${added} new (total=${intercepted.size}) hasMore=${result.hasMore}`);
         if (!result.hasMore) break;
