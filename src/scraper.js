@@ -291,7 +291,9 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
 
     page.on('response', async (response) => {
       const url = response.url();
-      if (!url.includes('tiktok.com')) return;
+      if (!url.includes('tiktok.com') || !url.includes('/api/')) return;
+      // Log every API URL so we can see what TikTok is calling
+      log(`[api] ${url.slice(0, 150)}`);
       if (!url.includes('/api/search/') && !(url.includes('live') && url.includes('list'))) return;
       try {
         const json = await response.json();
@@ -352,9 +354,13 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       dbg('[diag]', JSON.stringify(pageDiag));
     }
 
-    // Wait for page 1 to load and be intercepted
+    // Wait for page 1 to load and be intercepted — give TikTok up to 8s
     const MAX_ROOMS = 200;
-    await page.waitForTimeout(2500);
+    // Check every second; stop early if we have rooms
+    for (let w = 0; w < 8; w++) {
+      await page.waitForTimeout(1000);
+      if (intercepted.size > 0) break;
+    }
     log(`[scrape] page 1 intercepted ${intercepted.size} rooms`);
 
     // Replay TikTok's own API headers to fetch pages 2, 3, ...
