@@ -74,8 +74,10 @@ async function launchBrowser() {
   // the SSL capability refers to target sites, not the proxy connection itself.
   const proxyUrl = proxyServer ? `http://${proxyServer}` : null;
 
-  return chromium.launch({
+  console.log('[proxy] launching chromium (rebrowser)…');
+  const browser = await chromium.launch({
     headless: false,
+    timeout: 60000,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -91,6 +93,8 @@ async function launchBrowser() {
       }
     } : {})
   });
+  console.log('[proxy] chromium launched ok');
+  return browser;
 }
 
 async function newTikTokContext(browser) {
@@ -532,7 +536,15 @@ export async function scrapeTikTokLive(keyword, context, maxRetries = 3) {
 }
 
 export async function scrapeAllKeywords(keywords, maxRetries = 3) {
-  let browser = await launchBrowser();
+  console.log('[run] launching browser…');
+  let browser;
+  try {
+    browser = await launchBrowser();
+  } catch (err) {
+    console.error('[run] BROWSER LAUNCH FAILED:', err?.message || err);
+    console.error('[run] stack:', err?.stack?.split('\n').slice(0, 5).join(' | '));
+    throw err;
+  }
   let context = await newTikTokContext(browser);
   console.log(`[run] browser launched, scraping ${keywords.length} keyword(s)`);
 
