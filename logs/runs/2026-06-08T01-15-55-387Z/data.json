@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-06-08T01:15:55.387Z",
+  "commit": "f103abc64af1783ea8cf4194207f3cd3554f8c97",
+  "results": [
+    {
+      "keyword": "Live",
+      "collected_at": "2026-06-08T01:15:55.387Z",
+      "mode": "failed",
+      "error": "page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/\nCall log:\n  - navigating to \"https://www.tiktok.com/\", waiting until \"domcontentloaded\"\n",
+      "roomCount": 0,
+      "rooms": [],
+      "runLog": [
+        "2026-06-08T01:15:54.501Z [scrape] start keyword=\"Live\"",
+        "2026-06-08T01:15:54.893Z [scrape] warming up guest session...",
+        "2026-06-08T01:15:55.297Z [scrape] fatal error: page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/\nCall log:\n  - navigating to \"https://www.tiktok.com/\", waiting until \"domcontentloaded\"\n"
+      ],
+      "screenshotBase64": null
+    }
+  ]
+}
