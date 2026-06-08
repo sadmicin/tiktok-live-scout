@@ -377,6 +377,7 @@ export async function scrapeTikTokLive(keyword) {
               followers: owner?.follow_info?.follower_count || 0,
               avatar: owner?.avatar_thumb?.url_list?.[0] || '',
               cover: raw?.cover?.url_list?.[0] || '',
+              streamSnapshot: raw?.stream_snapshot?.urls?.[0] || raw?.stream_snapshot?.url_list?.[0] || null,
               liveUrl: `https://www.tiktok.com/@${username}/live`,
               battle,
               source: 'fetch',
