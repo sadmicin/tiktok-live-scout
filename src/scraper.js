@@ -346,6 +346,11 @@ page.on('response', async (response) => {
     } else {
       // Page blank — use page.evaluate fetch with browser cookie jar as fallback
       log('[scrape] page blank — using evaluate fetch fallback');
+      // Extract msToken from cookies — TikTok includes it as a URL param in its own requests
+      const msToken = await page.evaluate(() =>
+        document.cookie.match(/msToken=([^;]+)/)?.[1] || ''
+      );
+
       const fetchParams = {
         keyword,
         count: '30',
@@ -360,11 +365,22 @@ page.on('response', async (response) => {
         channel: 'tiktok_web',
         cookie_enabled: 'true',
         device_platform: 'web_pc',
+        focus_state: 'true',
         from_page: 'search',
+        history_len: '2',
+        is_fullscreen: 'false',
+        is_page_visible: 'true',
         os: 'windows',
+        priority_region: '',
+        referer: '',
         region: 'US',
+        screen_height: '1080',
+        screen_width: '1920',
         tz_name: 'America/New_York',
+        webcast_language: 'en',
+        ...(msToken ? { msToken } : {}),
       };
+      log(`[fetch] msToken=${msToken ? msToken.slice(0, 20) + '…' : 'none'}`);
       for (let p = 0; p < MAX_PAGES && intercepted.size < MAX_ROOMS; p++) {
         const offset = p * 30;
         const result = await page.evaluate(async ({ fp, off }) => {
@@ -392,7 +408,10 @@ page.on('response', async (response) => {
               } catch (e) { signDebug = 'err:' + e.message; }
             }
 
-            const res = await fetch(url, { credentials: 'include' });
+            const res = await fetch(url, {
+              credentials: 'include',
+              headers: { 'Referer': location.href, 'Accept': '*/*' },
+            });
             if (!res.ok) return { error: res.status };
             const json = await res.json();
             return { ok: true, hasMore: json?.has_more, cursor: json?.cursor ?? null, data: json?.data || [], signed, signDebug };
