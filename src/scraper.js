@@ -341,6 +341,30 @@ export async function scrapeTikTokLive(keyword) {
             const owner = raw?.owner || {};
             const username = owner?.display_id || owner?.unique_id || '';
             if (!username) return null;
+
+            // Battle/PK data
+            const linkMic = raw?.link_mic || {};
+            const battleInfo = linkMic?.battle_info || null;
+            const ownerIdStr = String(owner?.id_str || owner?.id || '');
+            let battle = null;
+            if (battleInfo && battleInfo.battle_id_str) {
+              const leagueMap = battleInfo.league_info_map || {};
+              const armiesMap = battleInfo.armies || {};
+              const scoresArr = linkMic.battle_scores || [];
+              const myScoreEntry = scoresArr.find(s => String(s.user_id) === ownerIdStr || String(s.user_id_str) === ownerIdStr);
+              const myArmy = armiesMap[ownerIdStr] || {};
+              const myLeagueEntry = leagueMap[ownerIdStr]?.league_info || {};
+              battle = {
+                battleId: battleInfo.battle_id_str,
+                league: myLeagueEntry?.display_text?.content || null,
+                leagueIcon: myLeagueEntry?.icon?.url_list?.[0] || null,
+                score: myScoreEntry?.score ?? myArmy?.hostScore ?? null,
+                hostScore: myArmy?.hostScore ?? null,
+                startTime: battleInfo.battle_settings?.start_time_ms || null,
+                duration: battleInfo.battle_settings?.duration || null,
+              };
+            }
+
             return {
               id: raw?.id_str || raw?.id || '',
               username,
@@ -354,6 +378,7 @@ export async function scrapeTikTokLive(keyword) {
               avatar: owner?.avatar_thumb?.url_list?.[0] || '',
               cover: raw?.cover?.url_list?.[0] || '',
               liveUrl: `https://www.tiktok.com/@${username}/live`,
+              battle,
               source: 'fetch',
             };
           } catch { return null; }
