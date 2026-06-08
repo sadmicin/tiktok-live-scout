@@ -55,7 +55,6 @@ async function launchBrowser() {
 
   return chromium.launch({
     headless: false,
-    channel: 'chrome',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -222,6 +221,31 @@ export async function scrapeTikTokLive(keyword) {
 
     const page = await context.newPage();
 
+    // Intercept TikTok's internal API responses for LIVE search data
+    const apiRooms = [];
+    page.on('response', async (response) => {
+      const url = response.url();
+      if (url.includes('/api/search/') || (url.includes('tiktok.com') && url.includes('live') && url.includes('list'))) {
+        try {
+          const json = await response.json();
+          const items = json?.data || json?.live_list || json?.item_list || json?.lives || [];
+          if (Array.isArray(items) && items.length > 0) {
+            for (const item of items) {
+              const user = item?.author || item?.user || item?.room?.owner || {};
+              const stats = item?.stats || item?.room_info || item?.room || {};
+              const username = user?.uniqueId || user?.unique_id || user?.nickname;
+              const viewers = stats?.memberCount || stats?.user_count || stats?.viewerCount || 0;
+              const title = item?.desc || item?.title || item?.room?.title || '';
+              if (username) {
+                apiRooms.push({ username, title, viewers, liveUrl: `https://www.tiktok.com/@${username}/live`, source: 'api' });
+              }
+            }
+            log(`[api] intercepted ${items.length} items from ${url.slice(0, 100)}`);
+          }
+        } catch {}
+      }
+    });
+
     // Step 1: Land on the search page (not /search/live directly — TikTok redirects that)
     const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
     log(`[scrape] navigating to search page: ${searchUrl}`);
@@ -287,7 +311,9 @@ export async function scrapeTikTokLive(keyword) {
     log('[diag] bodyText:', pageDiag.bodyTextSample.slice(0, 800));
     log('[diag] hrefs:', pageDiag.hrefs.slice(0, 30).join(' | '));
 
-    const rooms = await scrollAndCollect(page, log, 12);
+    const domRooms = await scrollAndCollect(page, log, 12);
+    const rooms = apiRooms.length > 0 ? apiRooms : domRooms;
+    log(`[scrape] apiRooms=${apiRooms.length} domRooms=${domRooms.length} using=${apiRooms.length > 0 ? 'api' : 'dom'}`);
 
     // Save updated guest state
     await context.storageState({ path: STORAGE_STATE_PATH });
