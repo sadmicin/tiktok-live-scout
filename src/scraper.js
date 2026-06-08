@@ -331,13 +331,16 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
     async function fetchPage(kw, offset) {
       return page.evaluate(async ({ kw, offset }) => {
         try {
-          const params = new URLSearchParams({ keyword: kw, offset: String(offset), count: '30', aid: '1988', app_language: 'en', app_name: 'tiktok_web' });
+          const params = new URLSearchParams({ keyword: kw, offset: String(offset), count: '12', aid: '1988', app_language: 'en', app_name: 'tiktok_web' });
           const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
           const json = await res.json();
+          // Log top-level keys to help diagnose pagination fields
+          const topKeys = Object.keys(json || {}).join(',');
           return {
             items: json?.data || json?.live_list || json?.item_list || [],
             hasMore: json?.has_more ?? json?.hasMore ?? null,
             total: json?.total ?? null,
+            topKeys,
           };
         } catch { return { items: [], hasMore: false, total: null }; }
       }, { kw, offset });
@@ -347,12 +350,12 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
     let pageNum = 0;
     let hasMore = true;
 
-    while (hasMore && intercepted.size < MAX_ROOMS) {
-      const { items, hasMore: more, total } = await fetchPage(keyword, offset);
+    while (intercepted.size < MAX_ROOMS) {
+      const { items, hasMore: more, total, topKeys } = await fetchPage(keyword, offset);
       pageNum++;
 
       if (items.length === 0) {
-        dbg(`[scrape] page ${pageNum}: 0 items, stopping`);
+        log(`[scrape] page ${pageNum}: 0 items, stopping (has_more=${more}, topKeys=${topKeys})`);
         break;
       }
 
@@ -361,9 +364,10 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
         if (r && !intercepted.has(r.username)) intercepted.set(r.username, r);
       }
 
-      log(`[scrape] page ${pageNum}: ${items.length} items (total intercepted=${intercepted.size}${total != null ? ', api total='+total : ''})`);
+      log(`[scrape] page ${pageNum}: ${items.length} items, has_more=${more}, intercepted=${intercepted.size}${total != null ? ', total='+total : ''}`);
 
-      if (more === false || items.length < 30) break;
+      if (more === false) break;
+      if (items.length < 12) break; // partial page = end of results
       offset += items.length;
       // Small pause between pages to avoid rate limiting
       await page.waitForTimeout(500);
