@@ -317,9 +317,43 @@ export async function scrapeTikTokLive(keyword) {
     log('[diag] bodyText:', pageDiag.bodyTextSample.slice(0, 800));
     log('[diag] hrefs:', pageDiag.hrefs.slice(0, 30).join(' | '));
 
-    const domRooms = await scrollAndCollect(page, log, 12);
-    const rooms = apiRooms.length > 0 ? apiRooms : domRooms;
-    log(`[scrape] apiRooms=${apiRooms.length} domRooms=${domRooms.length} using=${apiRooms.length > 0 ? 'api' : 'dom'}`);
+    // Try calling the LIVE search API directly from within the page context
+    // (cookies + WebId are already set, so TikTok will accept the request)
+    const fetchedRooms = await page.evaluate(async (kw) => {
+      try {
+        const params = new URLSearchParams({
+          keyword: kw,
+          offset: '0',
+          count: '30',
+          aid: '1988',
+          app_language: 'en',
+          app_name: 'tiktok_web',
+        });
+        const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
+        const json = await res.json();
+        // Log raw structure for diagnosis
+        window.__ttApiDiag = JSON.stringify({ status: res.status, keys: Object.keys(json), dataLen: json?.data?.length });
+        const items = json?.data || json?.live_list || json?.item_list || [];
+        return items.map(item => ({
+          username: item?.author?.uniqueId || item?.user?.unique_id || '',
+          title: item?.desc || item?.title || '',
+          viewers: item?.stats?.memberCount || 0,
+          liveUrl: `https://www.tiktok.com/@${item?.author?.uniqueId || ''}/live`,
+          source: 'fetch',
+        })).filter(r => r.username);
+      } catch (e) {
+        window.__ttApiDiag = 'error: ' + e.message;
+        return [];
+      }
+    }, keyword);
+
+    const diagVal = await page.evaluate(() => window.__ttApiDiag || 'no diag');
+    log('[fetch-api] diag:', diagVal);
+    log('[fetch-api] rooms found:', fetchedRooms.length);
+
+    const domRooms = fetchedRooms.length > 0 ? [] : await scrollAndCollect(page, log, 12);
+    const rooms = fetchedRooms.length > 0 ? fetchedRooms : (apiRooms.length > 0 ? apiRooms : domRooms);
+    log(`[scrape] fetchedRooms=${fetchedRooms.length} apiRooms=${apiRooms.length} domRooms=${domRooms.length}`);
 
     // Save updated guest state
     await context.storageState({ path: STORAGE_STATE_PATH });
