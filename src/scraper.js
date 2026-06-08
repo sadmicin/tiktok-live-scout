@@ -368,8 +368,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
 
       if (!more || !nextCursor) break;
       cursor = nextCursor;
-      // Small pause between pages to avoid rate limiting
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1500);
     }
 
     function parseRawItem(item) {
@@ -451,7 +450,9 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
 
     // Save updated guest state
     await context.storageState({ path: STORAGE_STATE_PATH });
-    screenshotBase64 = (await page.screenshot({ fullPage: false, type: 'png' })).toString('base64');
+    try {
+      screenshotBase64 = (await page.screenshot({ fullPage: false, type: 'png', timeout: 8000 })).toString('base64');
+    } catch { dbg('[scrape] screenshot failed, continuing'); }
 
     await page.close();
 
