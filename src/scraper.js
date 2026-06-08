@@ -436,13 +436,15 @@ page.on('response', async (response) => {
     };
   } catch (err) {
     const durationMs = Date.now() - startTime;
-    log(`[scrape] error keyword="${keyword}" duration=${(durationMs/1000).toFixed(1)}s error=${err.message}`);
+    const errMsg = err.message || String(err);
+    const errStack = err.stack?.split('\n').slice(0,3).join(' | ') || '';
+    log(`[scrape] error keyword="${keyword}" duration=${(durationMs/1000).toFixed(1)}s error=${errMsg} stack=${errStack}`);
     return {
       keyword,
       collected_at: new Date().toISOString(),
       durationMs,
       mode: 'failed',
-      error: err.message,
+      error: errMsg,
       roomCount: 0,
       rooms: [],
       screenshotBase64,
@@ -451,7 +453,8 @@ page.on('response', async (response) => {
 }
 
 function isTunnelError(error) {
-  return (error || '').toLowerCase().includes('tunnel');
+  const e = (error || '').toLowerCase();
+  return e.includes('tunnel') || e.includes('proxy') || e.includes('err_') || e.includes('connection refused') || e.includes('econnrefused') || e.includes('socket');
 }
 
 export async function scrapeTikTokLive(keyword, context, maxRetries = 3) {
