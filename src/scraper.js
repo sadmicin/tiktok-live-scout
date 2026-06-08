@@ -296,113 +296,82 @@ page.on('response', async (response) => {
     const liveUrl = `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
 
     if (hasGuestState()) {
-      // Fast path: cookies already set, go straight to live search
       dbg(`[scrape] fast path — navigating directly to live search`);
       await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(3000);
     } else {
-      // Slow path: no session yet — navigate to search, dismiss popup, click live tab
-      const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
-      dbg(`[scrape] slow path — no guest state`);
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      // Warm up on the main page first so TikTok's app fully initialises
+      dbg(`[scrape] slow path — warming up on main page`);
+      await page.goto('https://www.tiktok.com/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForTimeout(4000);
       await dismissLoginPopup(page);
-      await page.waitForTimeout(3000);
-
-      let liveTabClicked = false;
-      try {
-        const liveTabLink = page.locator('a[href*="/search/live"]').first();
-        await liveTabLink.click({ timeout: 8000 });
-        liveTabClicked = true;
-        dbg('[scrape] clicked /search/live anchor');
-      } catch {}
-
-      if (!liveTabClicked) {
-        await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      }
-      await page.waitForTimeout(3000);
+      await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForTimeout(5000);
     }
 
-    dbg('[scrape] current url:', page.url());
+    log('[scrape] current url:', page.url());
 
-    if (DEBUG) {
-      const pageDiag = await page.evaluate(() => {
-        const allLinks = Array.from(document.querySelectorAll('a[href]'));
-        const hrefs = [...new Set(allLinks.map(a => a.href.replace(/\?.*$/, '')))].slice(0, 60);
-        return {
-          url: location.href,
-          title: document.title,
-          anchorCount: allLinks.length,
-          hrefs,
-          bodyTextLength: document.body?.innerText?.length || 0,
-          bodyTextSample: (document.body?.innerText || '').slice(0, 800),
-          hasLiveHrefs: allLinks.some(a => /\/@[^/]+\/live/.test(a.href)),
-        };
-      });
-      dbg('[diag]', JSON.stringify(pageDiag));
-    }
+    const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0);
+    log(`[scrape] bodyTextLength=${bodyLen}`);
 
-    // Wait briefly for TikTok cookies/tokens to be set during page load
-    await page.waitForTimeout(2000);
-
-    // Fetch live search results directly from the browser context.
-    // This uses the browser's cookie jar (msToken, ttwid, etc.) so TikTok
-    // sees a credentialed same-origin request — works even when the page renders blank.
     const MAX_ROOMS = 200;
     const MAX_PAGES = 8;
-    const fetchParams = {
-      keyword,
-      count: '30',
-      aid: '1988',
-      app_language: 'en',
-      app_name: 'tiktok_web',
-      browser_language: 'en-US',
-      browser_name: 'Mozilla',
-      browser_online: 'true',
-      browser_platform: 'Win32',
-      browser_version: '5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      channel: 'tiktok_web',
-      cookie_enabled: 'true',
-      device_platform: 'web_pc',
-      from_page: 'search',
-      os: 'windows',
-      region: 'US',
-      tz_name: 'America/New_York',
-    };
 
-    for (let p = 0; p < MAX_PAGES && intercepted.size < MAX_ROOMS; p++) {
-      const offset = p * 30;
-      const result = await page.evaluate(async ({ fp, off }) => {
-        try {
-          const params = new URLSearchParams({ ...fp, offset: String(off) });
-          const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
-          if (!res.ok) return { error: res.status };
-          const json = await res.json();
-          // Return cursor/search_id for continuity — TikTok uses these to paginate
-          return {
-            ok: true,
-            hasMore: json?.has_more,
-            cursor: json?.cursor ?? null,
-            searchId: json?.extra?.search_id || json?.search_id || null,
-            extra: json?.extra || null,
-            searchNilInfo: json?.search_nil_info || null,
-            data: json?.data || [],
-            rawKeys: Object.keys(json || {}),
-          };
-        } catch (e) { return { error: String(e) }; }
-      }, { fp: fetchParams, off: offset });
-
-      if (result.error) {
-        log(`[fetch] page ${p+1} offset=${offset} error=${result.error}`);
-        break;
+    if (bodyLen > 200) {
+      // Page rendered — use scroll-based pagination so TikTok's own scroll handler
+      // fires API requests with proper security tokens on each scroll
+      log('[scrape] page rendered — using scroll-based pagination');
+      const MAX_SCROLLS = 12;
+      for (let s = 0; s < MAX_SCROLLS && intercepted.size < MAX_ROOMS; s++) {
+        const prevSize = intercepted.size;
+        await page.mouse.wheel(0, 1500);
+        await page.waitForTimeout(2000);
+        if (s % 3 === 2) await page.waitForTimeout(1000); // occasional extra wait
+        if (s > 0 && intercepted.size === prevSize) {
+          log('[scrape] no new rooms after scroll, stopping');
+          break;
+        }
+        if (intercepted.size > prevSize) log(`[scrape] scroll ${s+1}: +${intercepted.size - prevSize} new (total=${intercepted.size})`);
       }
-      const added = parseItemsIntoIntercepted(result.data || [], 'fetch');
-      log(`[fetch] page ${p+1} offset=${offset}: +${added} new (total=${intercepted.size}) hasMore=${result.hasMore} cursor=${result.cursor} searchId=${result.searchId} nilInfo=${JSON.stringify(result.searchNilInfo)} extra=${JSON.stringify(result.extra)} keys=${result.rawKeys?.join(',')}`);
-      if (!result.hasMore) break;
-
-      // Thread TikTok's session tokens into subsequent requests
-      if (result.cursor !== null) fetchParams.offset = String(result.cursor);
-      if (result.searchId) fetchParams.search_id = result.searchId;
-      await page.waitForTimeout(300);
+    } else {
+      // Page blank — use page.evaluate fetch with browser cookie jar as fallback
+      log('[scrape] page blank — using evaluate fetch fallback');
+      const fetchParams = {
+        keyword,
+        count: '30',
+        aid: '1988',
+        app_language: 'en',
+        app_name: 'tiktok_web',
+        browser_language: 'en-US',
+        browser_name: 'Mozilla',
+        browser_online: 'true',
+        browser_platform: 'Win32',
+        browser_version: '5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        channel: 'tiktok_web',
+        cookie_enabled: 'true',
+        device_platform: 'web_pc',
+        from_page: 'search',
+        os: 'windows',
+        region: 'US',
+        tz_name: 'America/New_York',
+      };
+      for (let p = 0; p < MAX_PAGES && intercepted.size < MAX_ROOMS; p++) {
+        const offset = p * 30;
+        const result = await page.evaluate(async ({ fp, off }) => {
+          try {
+            const params = new URLSearchParams({ ...fp, offset: String(off) });
+            const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
+            if (!res.ok) return { error: res.status };
+            const json = await res.json();
+            return { ok: true, hasMore: json?.has_more, cursor: json?.cursor ?? null, data: json?.data || [] };
+          } catch (e) { return { error: String(e) }; }
+        }, { fp: fetchParams, off: offset });
+        if (result.error) { log(`[fetch] offset=${offset} error=${result.error}`); break; }
+        const added = parseItemsIntoIntercepted(result.data || [], 'fetch');
+        log(`[fetch] offset=${offset}: +${added} new (total=${intercepted.size}) hasMore=${result.hasMore}`);
+        if (!result.hasMore) break;
+        await page.waitForTimeout(400);
+      }
     }
 
     const fetchedRooms = Array.from(intercepted.values());
