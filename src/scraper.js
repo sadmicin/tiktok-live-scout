@@ -290,7 +290,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       dbg('[diag]', JSON.stringify(pageDiag));
     }
 
-    async function runFetch(kw, offset = 0) { return page.evaluate(async (kw, offset) => {
+    async function runFetch(kw, offset = 0) { return page.evaluate(async ({ kw, offset }) => {
       try {
         const params = new URLSearchParams({
           keyword: kw,
@@ -357,7 +357,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
         window.__ttApiDiag = 'error: ' + e.message;
         return [];
       }
-    }, kw, offset); }
+    }, { kw, offset }); }
 
     const MAX_ROOMS = 200;
     const seen = new Map();
