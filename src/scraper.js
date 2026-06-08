@@ -415,7 +415,6 @@ async function scrapeTikTokLiveOnce(keyword, log, dbg) {
       mode: 'fetch',
       roomCount: rooms.length,
       rooms,
-      runLog,
       screenshotBase64,
     };
   } catch (err) {
@@ -430,7 +429,6 @@ async function scrapeTikTokLiveOnce(keyword, log, dbg) {
       error: err.message,
       roomCount: 0,
       rooms: [],
-      runLog,
       screenshotBase64,
     };
   }
