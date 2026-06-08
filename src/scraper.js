@@ -505,8 +505,8 @@ export async function scrapeTikTokLive(keyword, context, maxRetries = 3) {
 }
 
 export async function scrapeAllKeywords(keywords, maxRetries = 3) {
-  const browser = await launchBrowser();
-  const context = await newTikTokContext(browser);
+  let browser = await launchBrowser();
+  let context = await newTikTokContext(browser);
   console.log(`[run] browser launched, scraping ${keywords.length} keyword(s)`);
 
   const results = [];
@@ -514,6 +514,13 @@ export async function scrapeAllKeywords(keywords, maxRetries = 3) {
     for (const keyword of keywords) {
       const result = await scrapeTikTokLive(keyword, context, maxRetries);
       results.push(result);
+      // Tunnel failure exhausted all retries — relaunch browser for remaining keywords
+      if (result.mode === 'failed' && isTunnelError(result.error)) {
+        console.log('[run] tunnel failure, relaunching browser for remaining keywords');
+        try { await browser.close(); } catch {}
+        browser = await launchBrowser();
+        context = await newTikTokContext(browser);
+      }
     }
   } finally {
     try { await browser.close(); } catch {}
