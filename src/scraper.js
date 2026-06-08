@@ -335,12 +335,15 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
           if (cursor) params.set('cursor', String(cursor));
           const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
           const json = await res.json();
+          const topKeys = Object.keys(json || {}).join(',');
           return {
             items: json?.data || json?.live_list || json?.item_list || [],
             hasMore: json?.has_more ?? null,
             cursor: json?.cursor ?? null,
+            status: res.status,
+            topKeys,
           };
-        } catch { return { items: [], hasMore: false, cursor: null }; }
+        } catch (e) { return { items: [], hasMore: false, cursor: null, status: -1, topKeys: 'error:'+e.message }; }
       }, { kw, cursor });
     }
 
@@ -348,11 +351,11 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
     let pageNum = 0;
 
     while (intercepted.size < MAX_ROOMS) {
-      const { items, hasMore: more, cursor: nextCursor } = await fetchPage(keyword, cursor);
+      const { items, hasMore: more, cursor: nextCursor, status, topKeys } = await fetchPage(keyword, cursor);
       pageNum++;
 
       if (items.length === 0) {
-        dbg(`[scrape] page ${pageNum}: 0 items, stopping`);
+        log(`[scrape] page ${pageNum}: 0 items, stopping (status=${status}, has_more=${more}, cursor=${nextCursor}, keys=${topKeys})`);
         break;
       }
 
@@ -361,7 +364,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
         if (r && !intercepted.has(r.username)) intercepted.set(r.username, r);
       }
 
-      log(`[scrape] page ${pageNum}: ${items.length} items, has_more=${more}, intercepted=${intercepted.size}`);
+      log(`[scrape] page ${pageNum}: ${items.length} items, has_more=${more}, cursor=${nextCursor}, intercepted=${intercepted.size}`);
 
       if (!more || !nextCursor) break;
       cursor = nextCursor;
