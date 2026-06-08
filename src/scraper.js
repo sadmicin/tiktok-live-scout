@@ -393,23 +393,45 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
     }
     dbg(`[scrape] manual fetch: ${page1.length} items, intercepted total=${intercepted.size}`);
 
-    // Scroll to trigger TikTok's own paginated API calls (captured by interceptor above)
-    const SCROLL_PAUSE = 2500;
+    // Scroll DOM to collect additional creators — TikTok lazy-loads more results on scroll
+    // DOM cards have limited fields; we prefer API data where we already have it
     const MAX_SCROLLS = 10;
-    let prevSize = intercepted.size;
+    const SCROLL_PAUSE = 2000;
+    let domTotal = 0;
     for (let s = 1; s <= MAX_SCROLLS && intercepted.size < MAX_ROOMS; s++) {
       await page.mouse.wheel(0, 2000);
       await page.waitForTimeout(SCROLL_PAUSE);
-      if (intercepted.size === prevSize) {
-        dbg(`[scrape] no new rooms after scroll ${s}, stopping`);
-        break;
+      const domCards = await page.evaluate(extractLiveCards);
+      let newCount = 0;
+      for (const card of domCards) {
+        if (!intercepted.has(card.username)) {
+          intercepted.set(card.username, {
+            username: card.username,
+            nickname: '',
+            title: card.title || '',
+            viewers: card.viewers || 0,
+            totalViewers: 0,
+            comments: 0,
+            shares: 0,
+            followers: 0,
+            avatar: card.avatarSrc || '',
+            cover: '',
+            streamSnapshot: null,
+            liveUrl: card.liveUrl,
+            battle: null,
+            source: 'dom',
+          });
+          newCount++;
+        }
       }
-      dbg(`[scrape] scroll ${s}: ${intercepted.size} rooms`);
-      prevSize = intercepted.size;
+      domTotal += newCount;
+      dbg(`[scrape] scroll ${s}: +${newCount} new dom rooms, total=${intercepted.size}`);
+      if (newCount === 0) { dbg(`[scrape] no new rooms after scroll ${s}, stopping`); break; }
     }
+    if (domTotal > 0) dbg(`[scrape] dom scroll added ${domTotal} rooms`);
 
     const fetchedRooms = Array.from(intercepted.values());
-    log(`[scrape] keyword="${keyword}" total=${fetchedRooms.length} rooms`);
+    log(`[scrape] keyword="${keyword}" total=${fetchedRooms.length} rooms (${fetchedRooms.filter(r=>r.source==='fetch').length} rich, ${fetchedRooms.filter(r=>r.source==='dom').length} dom)`);
 
     // TODO: store images in Cloudflare R2 for permanent URLs instead of base64
     // See TODO.md — needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET env vars
