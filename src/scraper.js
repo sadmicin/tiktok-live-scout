@@ -325,21 +325,48 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       dbg('[diag]', JSON.stringify(pageDiag));
     }
 
-    // Manual fetch for page 1 — proven reliable, seeds the map before scrolling
+    // Paginate via API — fetch pages until has_more=false, empty result, or cap
     const MAX_ROOMS = 200;
-    const page1 = await page.evaluate(async (kw) => {
-      try {
-        const params = new URLSearchParams({ keyword: kw, offset: '0', count: '30', aid: '1988', app_language: 'en', app_name: 'tiktok_web' });
-        const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
-        const json = await res.json();
-        return json?.data || json?.live_list || json?.item_list || [];
-      } catch { return []; }
-    }, keyword);
 
-    if (page1.length === 0) {
-      dbg('[scrape] manual fetch returned 0, waiting 2s and retrying');
-      await page.waitForTimeout(2000);
-      // interceptor may have already captured some; fall through to scroll
+    async function fetchPage(kw, offset) {
+      return page.evaluate(async ({ kw, offset }) => {
+        try {
+          const params = new URLSearchParams({ keyword: kw, offset: String(offset), count: '30', aid: '1988', app_language: 'en', app_name: 'tiktok_web' });
+          const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
+          const json = await res.json();
+          return {
+            items: json?.data || json?.live_list || json?.item_list || [],
+            hasMore: json?.has_more ?? json?.hasMore ?? null,
+            total: json?.total ?? null,
+          };
+        } catch { return { items: [], hasMore: false, total: null }; }
+      }, { kw, offset });
+    }
+
+    let offset = 0;
+    let pageNum = 0;
+    let hasMore = true;
+
+    while (hasMore && intercepted.size < MAX_ROOMS) {
+      const { items, hasMore: more, total } = await fetchPage(keyword, offset);
+      pageNum++;
+
+      if (items.length === 0) {
+        dbg(`[scrape] page ${pageNum}: 0 items, stopping`);
+        break;
+      }
+
+      for (const item of items) {
+        const r = parseRawItem(item);
+        if (r && !intercepted.has(r.username)) intercepted.set(r.username, r);
+      }
+
+      log(`[scrape] page ${pageNum}: ${items.length} items (total intercepted=${intercepted.size}${total != null ? ', api total='+total : ''})`);
+
+      if (more === false || items.length < 30) break;
+      offset += items.length;
+      // Small pause between pages to avoid rate limiting
+      await page.waitForTimeout(500);
     }
 
     function parseRawItem(item) {
@@ -389,55 +416,8 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       } catch { return null; }
     }
 
-    for (const item of page1) {
-      const r = parseRawItem(item);
-      if (r && !intercepted.has(r.username)) intercepted.set(r.username, r);
-    }
-    dbg(`[scrape] manual fetch: ${page1.length} items, intercepted total=${intercepted.size}`);
-
-    // Scroll to load more creators. If interceptor captures rich API data from scroll
-    // responses, great. DOM fallback fills any gaps with basic fields.
-    let prevSize = intercepted.size;
-    const MAX_SCROLLS = 10;
-    const SCROLL_PAUSE = 2500;
-    for (let s = 1; s <= MAX_SCROLLS && intercepted.size < MAX_ROOMS; s++) {
-      // Scroll to bottom via JS to trigger TikTok's infinite scroll loader
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(SCROLL_PAUSE);
-      const domCards = await page.evaluate(extractLiveCards);
-      let newCount = 0;
-      dbg(`[scrape] scroll ${s}: DOM found ${domCards.length} cards, intercepted=${intercepted.size}`);
-      for (const card of domCards) {
-        if (!intercepted.has(card.username)) {
-          intercepted.set(card.username, {
-            username: card.username,
-            nickname: '',
-            title: card.title || '',
-            viewers: card.viewers || 0,
-            totalViewers: 0,
-            comments: 0,
-            shares: 0,
-            followers: 0,
-            avatar: card.avatarSrc || '',
-            cover: '',
-            streamSnapshot: null,
-            liveUrl: card.liveUrl,
-            battle: null,
-            source: 'dom',
-          });
-          newCount++;
-        }
-      }
-      const totalNew = intercepted.size - prevSize;
-      dbg(`[scrape] scroll ${s}: +${newCount} dom, total=${intercepted.size}`);
-      if (totalNew === 0) { dbg(`[scrape] no new rooms after scroll ${s}, stopping`); break; }
-      prevSize = intercepted.size;
-    }
-
     const fetchedRooms = Array.from(intercepted.values());
-    const richCount = fetchedRooms.filter(r => r.source !== 'dom').length;
-    const domCount = fetchedRooms.filter(r => r.source === 'dom').length;
-    log(`[scrape] keyword="${keyword}" total=${fetchedRooms.length} rooms (${richCount} rich, ${domCount} dom)`);
+    log(`[scrape] keyword="${keyword}" total=${fetchedRooms.length} rooms across ${pageNum} page(s)`);
 
     // TODO: store images in Cloudflare R2 for permanent URLs instead of base64
     // See TODO.md — needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET env vars
