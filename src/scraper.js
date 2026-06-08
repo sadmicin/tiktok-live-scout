@@ -280,32 +280,27 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
 
     page.on('request', (request) => {
       const url = request.url();
-      if (!url.includes('tiktok.com') || !url.includes('/api/')) return;
-      // Capture headers from any TikTok search/live API request
-      if (!capturedSearchHeaders && (url.includes('/api/search/') || url.includes('/api/live/'))) {
+      // Capture security headers from TikTok's own search API call for pagination replay
+      if (!capturedSearchHeaders && url.includes('tiktok.com') &&
+          (url.includes('/api/search/live') || url.includes('/api/search/?'))) {
         capturedSearchHeaders = request.headers();
         capturedSearchUrl = url;
-        log(`[intercept] captured API request headers from ${url.slice(0, 120)}`);
+        log(`[intercept] captured API headers from ${url.slice(0, 120)}`);
       }
     });
 
     page.on('response', async (response) => {
       const url = response.url();
       if (!url.includes('tiktok.com')) return;
-      if (!url.includes('/api/')) return;
+      if (!url.includes('/api/search/') && !(url.includes('live') && url.includes('list'))) return;
       try {
-        const text = await response.text();
-        let json;
-        try { json = JSON.parse(text); } catch { return; }
+        const json = await response.json();
         const items = json?.data || json?.live_list || json?.item_list || json?.lives || [];
-        // Log any API response with data so we can diagnose
-        if (Array.isArray(items) && items.length > 0) {
-          const hasRaw = items.some(i => i?.live_info?.raw_data);
-          log(`[intercept] api response: ${items.length} items hasRaw=${hasRaw} url=${url.slice(0, 80)}`);
-          if (!hasRaw) return;
-          const added = parseItemsIntoIntercepted(items, 'intercepted');
-          if (added > 0) log(`[intercept] +${added} rooms (total=${intercepted.size})`);
-        }
+        if (!Array.isArray(items) || items.length === 0) return;
+        log(`[intercept] api hit: ${items.length} items, hasRaw=${items.some(i => i?.live_info?.raw_data)} url=${url.slice(0, 80)}`);
+        if (!items.some(i => i?.live_info?.raw_data)) return;
+        const added = parseItemsIntoIntercepted(items, 'intercepted');
+        if (added > 0) log(`[intercept] +${added} rooms (total=${intercepted.size})`);
       } catch {}
     });
 
