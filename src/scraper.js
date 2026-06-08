@@ -383,6 +383,8 @@ page.on('response', async (response) => {
             hasMore: json?.has_more,
             cursor: json?.cursor ?? null,
             searchId: json?.extra?.search_id || json?.search_id || null,
+            extra: json?.extra || null,
+            searchNilInfo: json?.search_nil_info || null,
             data: json?.data || [],
             rawKeys: Object.keys(json || {}),
           };
@@ -394,7 +396,7 @@ page.on('response', async (response) => {
         break;
       }
       const added = parseItemsIntoIntercepted(result.data || [], 'fetch');
-      log(`[fetch] page ${p+1} offset=${offset}: +${added} new (total=${intercepted.size}) hasMore=${result.hasMore} cursor=${result.cursor} searchId=${result.searchId} keys=${result.rawKeys?.join(',')}`);
+      log(`[fetch] page ${p+1} offset=${offset}: +${added} new (total=${intercepted.size}) hasMore=${result.hasMore} cursor=${result.cursor} searchId=${result.searchId} nilInfo=${JSON.stringify(result.searchNilInfo)} extra=${JSON.stringify(result.extra)} keys=${result.rawKeys?.join(',')}`);
       if (!result.hasMore) break;
 
       // Thread TikTok's session tokens into subsequent requests
