@@ -394,15 +394,18 @@ export async function scrapeTikTokLive(keyword) {
     log('[fetch-api] diag:', diagVal);
     log('[fetch-api] rooms found:', fetchedRooms.length);
 
-    // Fetch images via Playwright's context.request (server-side, through proxy, shares cookies, no CORS)
+    // Fetch images directly (no proxy) — signed URLs contain auth in query params,
+    // proxy is only needed for TikTok page navigation and the search API call.
     if (fetchedRooms.length > 0) {
       async function fetchImageBase64(url) {
         if (!url) return null;
         try {
-          const resp = await context.request.get(url, { timeout: 8000 });
-          if (!resp.ok()) return null;
-          const buf = await resp.body();
-          const mime = resp.headers()['content-type'] || 'image/jpeg';
+          const res = await fetch(url, {
+            headers: { 'User-Agent': TIKTOK_USER_AGENT, 'Referer': 'https://www.tiktok.com/' },
+          });
+          if (!res.ok) return null;
+          const buf = Buffer.from(await res.arrayBuffer());
+          const mime = res.headers.get('content-type') || 'image/jpeg';
           return `data:${mime.split(';')[0]};base64,` + buf.toString('base64');
         } catch { return null; }
       }
