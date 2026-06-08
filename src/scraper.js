@@ -368,34 +368,25 @@ export async function scrapeTikTokLive(keyword) {
     log('[fetch-api] diag:', diagVal);
     log('[fetch-api] rooms found:', fetchedRooms.length);
 
-    // Fetch images as base64 from within the page (same-origin cookies bypass CDN signing)
+    // Fetch images via Playwright's context.request (server-side, through proxy, shares cookies, no CORS)
     if (fetchedRooms.length > 0) {
-      const imageUrls = fetchedRooms.map(r => ({ snapshot: r.streamSnapshot || null, avatar: r.avatar || null }));
-      const imageData = await page.evaluate(async (urlList) => {
-        async function toBase64(url) {
-          if (!url) return null;
-          try {
-            const res = await fetch(url, { credentials: 'include' });
-            if (!res.ok) return null;
-            const buf = await res.arrayBuffer();
-            const bytes = new Uint8Array(buf);
-            let bin = '';
-            for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-            const mime = res.headers.get('content-type') || 'image/jpeg';
-            return `data:${mime};base64,` + btoa(bin);
-          } catch { return null; }
-        }
-        return Promise.all(urlList.map(async ({ snapshot, avatar }) => ({
-          snapshot: await toBase64(snapshot),
-          avatar: await toBase64(avatar),
-        })));
-      }, imageUrls);
-
-      for (let i = 0; i < fetchedRooms.length; i++) {
-        if (imageData[i]?.snapshot) fetchedRooms[i].streamSnapshotBase64 = imageData[i].snapshot;
-        if (imageData[i]?.avatar) fetchedRooms[i].avatarBase64 = imageData[i].avatar;
+      async function fetchImageBase64(url) {
+        if (!url) return null;
+        try {
+          const resp = await context.request.get(url, { timeout: 8000 });
+          if (!resp.ok()) return null;
+          const buf = await resp.body();
+          const mime = resp.headers()['content-type'] || 'image/jpeg';
+          return `data:${mime.split(';')[0]};base64,` + buf.toString('base64');
+        } catch { return null; }
       }
-      const embedded = imageData.filter(x => x?.snapshot).length;
+
+      await Promise.all(fetchedRooms.map(async (room) => {
+        room.streamSnapshotBase64 = await fetchImageBase64(room.streamSnapshot || null);
+        room.avatarBase64 = await fetchImageBase64(room.avatar || null);
+      }));
+
+      const embedded = fetchedRooms.filter(r => r.streamSnapshotBase64).length;
       log(`[images] embedded ${embedded}/${fetchedRooms.length} snapshots as base64`);
     }
 
