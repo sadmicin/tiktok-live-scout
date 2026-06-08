@@ -392,40 +392,46 @@ page.on('response', async (response) => {
       log(`[fetch] msToken=${msToken ? msToken.slice(0, 20) + '…' : 'none'}`);
       for (let p = 0; p < MAX_PAGES && intercepted.size < MAX_ROOMS; p++) {
         const offset = p * 30;
-        const result = await page.evaluate(async ({ fp, off }) => {
-          try {
-            const params = new URLSearchParams({ ...fp, offset: String(off) });
-            let url = `/api/search/live/full/?${params}`;
+        let result;
+        try {
+          result = await page.evaluate(async ({ fp, off }) => {
+            try {
+              const params = new URLSearchParams({ ...fp, offset: String(off) });
+              let url = `/api/search/live/full/?${params}`;
 
-            // Sign with byted_acrawler if available — unlocks page 2+
-            let signed = false;
-            let signDebug = null;
-            if (window.byted_acrawler) {
-              try {
-                const fullUrl = location.origin + url;
-                const s = window.byted_acrawler.frontierSign?.(fullUrl)
-                       ?? window.byted_acrawler.encrypt?.({ url: fullUrl })
-                       ?? null;
-                signDebug = JSON.stringify(s);
-                if (s) {
-                  const bogus = s['X-Bogus'] ?? s.xBogus ?? s.bogus ?? null;
-                  const sig   = s['_signature'] ?? s.signature ?? null;
-                  if (bogus) url += `&X-Bogus=${encodeURIComponent(bogus)}`;
-                  if (sig)   url += `&_signature=${encodeURIComponent(sig)}`;
-                  signed = !!(bogus || sig);
-                }
-              } catch (e) { signDebug = 'err:' + e.message; }
-            }
+              // Sign with byted_acrawler if available — unlocks page 2+
+              let signed = false;
+              let signDebug = null;
+              if (window.byted_acrawler) {
+                try {
+                  const fullUrl = location.origin + url;
+                  const s = window.byted_acrawler.frontierSign?.(fullUrl)
+                         ?? window.byted_acrawler.encrypt?.({ url: fullUrl })
+                         ?? null;
+                  signDebug = JSON.stringify(s);
+                  if (s) {
+                    const bogus = s['X-Bogus'] ?? s.xBogus ?? s.bogus ?? null;
+                    const sig   = s['_signature'] ?? s.signature ?? null;
+                    if (bogus) url += `&X-Bogus=${encodeURIComponent(bogus)}`;
+                    if (sig)   url += `&_signature=${encodeURIComponent(sig)}`;
+                    signed = !!(bogus || sig);
+                  }
+                } catch (e) { signDebug = 'err:' + e.message; }
+              }
 
-            const res = await fetch(url, {
-              credentials: 'include',
-              headers: { 'Referer': location.href, 'Accept': '*/*' },
-            });
-            if (!res.ok) return { error: res.status };
-            const json = await res.json();
-            return { ok: true, hasMore: json?.has_more, cursor: json?.cursor ?? null, data: json?.data || [], signed, signDebug };
-          } catch (e) { return { error: String(e) }; }
-        }, { fp: fetchParams, off: offset });
+              const res = await fetch(url, {
+                credentials: 'include',
+                headers: { 'Referer': location.href, 'Accept': '*/*' },
+              });
+              if (!res.ok) return { error: res.status };
+              const json = await res.json();
+              return { ok: true, hasMore: json?.has_more, cursor: json?.cursor ?? null, data: json?.data || [], signed, signDebug };
+            } catch (e) { return { error: String(e) }; }
+          }, { fp: fetchParams, off: offset });
+        } catch (evalErr) {
+          log(`[fetch] offset=${offset} context destroyed, keeping ${intercepted.size} rooms`);
+          break;
+        }
         if (result.error) { log(`[fetch] offset=${offset} error=${result.error}`); break; }
         const added = parseItemsIntoIntercepted(result.data || [], 'fetch');
         if (p <= 1) log(`[fetch] offset=${offset} signDebug=${result.signDebug}`);
