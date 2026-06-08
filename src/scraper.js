@@ -206,11 +206,8 @@ async function scrollAndCollect(page, log, scrollRounds = 12) {
   return Array.from(seen.values());
 }
 
-export async function scrapeTikTokLive(keyword) {
-  const { log, dbg, lines: runLog } = makeLogger();
+async function scrapeTikTokLiveOnce(keyword, log, dbg) {
   const startTime = Date.now();
-  log(`[scrape] start keyword="${keyword}"`);
-
   const browser = await launchBrowser();
   let screenshotBase64 = null;
 
@@ -437,6 +434,35 @@ export async function scrapeTikTokLive(keyword) {
       screenshotBase64,
     };
   }
+}
+
+export async function scrapeTikTokLive(keyword, maxRetries = 3) {
+  const { log, dbg, lines: runLog } = makeLogger();
+  const startTime = Date.now();
+  log(`[scrape] start keyword="${keyword}"`);
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const result = await scrapeTikTokLiveOnce(keyword, log, dbg);
+    if (result.mode !== 'failed' || !result.error?.includes('tunnel')) {
+      return result;
+    }
+    log(`[scrape] tunnel failure attempt ${attempt}/${maxRetries}, retrying...`);
+    if (attempt < maxRetries) await new Promise(r => setTimeout(r, 2000 * attempt));
+  }
+
+  const durationMs = Date.now() - startTime;
+  log(`[scrape] all ${maxRetries} attempts failed for keyword="${keyword}"`);
+  return {
+    keyword,
+    collected_at: new Date().toISOString(),
+    durationMs,
+    mode: 'failed',
+    error: 'Max retries exceeded — tunnel failures',
+    roomCount: 0,
+    rooms: [],
+    runLog,
+    screenshotBase64: null,
+  };
 }
 
 export async function debugTikTokPage(keyword = 'battle') {
