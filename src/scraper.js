@@ -399,14 +399,14 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
     // responses, great. DOM fallback fills any gaps with basic fields.
     let prevSize = intercepted.size;
     const MAX_SCROLLS = 10;
-    const SCROLL_PAUSE = 2000;
-    let domTotal = 0;
+    const SCROLL_PAUSE = 2500;
     for (let s = 1; s <= MAX_SCROLLS && intercepted.size < MAX_ROOMS; s++) {
-      await page.mouse.wheel(0, 2000);
+      // Scroll to bottom via JS to trigger TikTok's infinite scroll loader
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await page.waitForTimeout(SCROLL_PAUSE);
       const domCards = await page.evaluate(extractLiveCards);
       let newCount = 0;
-      dbg(`[scrape] scroll ${s}: DOM found ${domCards.length} cards total`);
+      dbg(`[scrape] scroll ${s}: DOM found ${domCards.length} cards, intercepted=${intercepted.size}`);
       for (const card of domCards) {
         if (!intercepted.has(card.username)) {
           intercepted.set(card.username, {
