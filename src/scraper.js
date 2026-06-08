@@ -290,11 +290,11 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       dbg('[diag]', JSON.stringify(pageDiag));
     }
 
-    async function runFetch(kw) { return page.evaluate(async (kw) => {
+    async function runFetch(kw, offset = 0) { return page.evaluate(async (kw, offset) => {
       try {
         const params = new URLSearchParams({
           keyword: kw,
-          offset: '0',
+          offset: String(offset),
           count: '30',
           aid: '1988',
           app_language: 'en',
@@ -357,18 +357,41 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
         window.__ttApiDiag = 'error: ' + e.message;
         return [];
       }
-    }, kw); }
+    }, kw, offset); }
 
-    let fetchedRooms = await runFetch(keyword);
-    if (fetchedRooms.length === 0) {
-      dbg('[scrape] 0 results, waiting 2s and retrying fetch');
+    const MAX_ROOMS = 200;
+    const seen = new Map();
+    let offset = 0;
+    let pageNum = 0;
+
+    // First fetch — retry once if 0 results (page may still be initializing)
+    let firstPage = await runFetch(keyword, 0);
+    if (firstPage.length === 0) {
+      dbg('[scrape] 0 results on first try, waiting 2s and retrying');
       await page.waitForTimeout(2000);
-      fetchedRooms = await runFetch(keyword);
+      firstPage = await runFetch(keyword, 0);
     }
+    for (const r of firstPage) if (!seen.has(r.username)) seen.set(r.username, r);
+    offset = firstPage.length;
+    pageNum = 1;
+    log(`[scrape] keyword="${keyword}" page 1: ${firstPage.length} rooms`);
+
+    // Paginate until empty page, partial page, or cap
+    while (firstPage.length === 30 && seen.size < MAX_ROOMS) {
+      const page_results = await runFetch(keyword, offset);
+      pageNum++;
+      log(`[scrape] keyword="${keyword}" page ${pageNum}: ${page_results.length} rooms`);
+      if (page_results.length === 0) break;
+      for (const r of page_results) if (!seen.has(r.username)) seen.set(r.username, r);
+      offset += page_results.length;
+      if (page_results.length < 30) break;
+    }
+
+    const fetchedRooms = Array.from(seen.values());
 
     const diagVal = await page.evaluate(() => window.__ttApiDiag || 'no diag');
     dbg('[fetch-api] diag:', diagVal);
-    log(`[scrape] keyword="${keyword}" rooms=${fetchedRooms.length}`);
+    log(`[scrape] keyword="${keyword}" total=${fetchedRooms.length} rooms across ${pageNum} page(s)`);
 
     // TODO: store images in Cloudflare R2 for permanent URLs instead of base64
     // See TODO.md — needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET env vars
