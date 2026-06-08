@@ -325,50 +325,34 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       dbg('[diag]', JSON.stringify(pageDiag));
     }
 
-    // Paginate via API — fetch pages until has_more=false, empty result, or cap
+    // Seed from first intercepted page (fires when the page initially loads)
     const MAX_ROOMS = 200;
+    await page.waitForTimeout(2000); // let initial load complete
 
-    async function fetchPage(kw, cursor) {
-      return page.evaluate(async ({ kw, cursor }) => {
-        try {
-          const params = new URLSearchParams({ keyword: kw, count: '30', aid: '1988', app_language: 'en', app_name: 'tiktok_web' });
-          if (cursor) params.set('offset', String(cursor));
-          const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
-          const json = await res.json();
-          const topKeys = Object.keys(json || {}).join(',');
-          return {
-            items: json?.data || json?.live_list || json?.item_list || [],
-            hasMore: json?.has_more ?? null,
-            cursor: json?.cursor ?? null,
-            status: res.status,
-            topKeys,
-          };
-        } catch (e) { return { items: [], hasMore: false, cursor: null, status: -1, topKeys: 'error:'+e.message }; }
-      }, { kw, cursor });
-    }
-
-    let cursor = null;
-    let pageNum = 0;
-
-    while (intercepted.size < MAX_ROOMS) {
-      const { items, hasMore: more, cursor: nextCursor, status, topKeys } = await fetchPage(keyword, cursor);
-      pageNum++;
-
-      if (items.length === 0) {
-        log(`[scrape] page ${pageNum}: 0 items, stopping (status=${status}, has_more=${more}, cursor=${nextCursor}, keys=${topKeys})`);
+    // Trigger TikTok's own pagination by firing scroll events on all possible containers
+    const MAX_SCROLLS = 10;
+    for (let s = 1; s <= MAX_SCROLLS && intercepted.size < MAX_ROOMS; s++) {
+      const prevSize = intercepted.size;
+      await page.evaluate(() => {
+        // Fire scroll events on window, document, and any overflow containers TikTok uses
+        window.scrollTo(0, document.body.scrollHeight);
+        window.dispatchEvent(new Event('scroll', { bubbles: true }));
+        document.dispatchEvent(new Event('scroll', { bubbles: true }));
+        document.body.dispatchEvent(new Event('scroll', { bubbles: true }));
+        // Try any scrollable divs (TikTok virtualises its lists)
+        document.querySelectorAll('div').forEach(el => {
+          if (el.scrollHeight > el.clientHeight) {
+            el.scrollTop = el.scrollHeight;
+            el.dispatchEvent(new Event('scroll', { bubbles: true }));
+          }
+        });
+      });
+      await page.waitForTimeout(2500);
+      if (intercepted.size === prevSize) {
+        dbg(`[scrape] scroll ${s}: no new rooms, stopping`);
         break;
       }
-
-      for (const item of items) {
-        const r = parseRawItem(item);
-        if (r && !intercepted.has(r.username)) intercepted.set(r.username, r);
-      }
-
-      log(`[scrape] page ${pageNum}: ${items.length} items, has_more=${more}, cursor=${nextCursor}, intercepted=${intercepted.size}`);
-
-      if (!more || !nextCursor) break;
-      cursor = nextCursor;
-      await page.waitForTimeout(1500);
+      log(`[scrape] scroll ${s}: +${intercepted.size - prevSize} rooms (total=${intercepted.size})`);
     }
 
     function parseRawItem(item) {
@@ -419,7 +403,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
     }
 
     const fetchedRooms = Array.from(intercepted.values());
-    log(`[scrape] keyword="${keyword}" total=${fetchedRooms.length} rooms across ${pageNum} page(s)`);
+    log(`[scrape] keyword="${keyword}" total=${fetchedRooms.length} rooms`);
 
     // TODO: store images in Cloudflare R2 for permanent URLs instead of base64
     // See TODO.md — needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET env vars
