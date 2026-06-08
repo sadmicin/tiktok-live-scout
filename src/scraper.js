@@ -338,10 +338,24 @@ export async function scrapeTikTokLive(keyword) {
         return items.map(item => {
           try {
             const raw = JSON.parse(item?.live_info?.raw_data || '{}');
-            const username = raw?.owner?.display_id || raw?.owner?.nickname || '';
-            const title = raw?.title || '';
-            const viewers = raw?.user_count || 0;
-            return { username, title, viewers, liveUrl: `https://www.tiktok.com/@${username}/live`, source: 'fetch' };
+            const owner = raw?.owner || {};
+            const username = owner?.display_id || owner?.unique_id || '';
+            if (!username) return null;
+            return {
+              id: raw?.id_str || raw?.id || '',
+              username,
+              nickname: owner?.nickname || '',
+              title: raw?.title || '',
+              viewers: raw?.user_count || 0,
+              totalViewers: raw?.stats?.total_user || 0,
+              comments: raw?.stats?.comment_count || 0,
+              shares: raw?.stats?.share_count || 0,
+              followers: owner?.follow_info?.follower_count || 0,
+              avatar: owner?.avatar_thumb?.url_list?.[0] || '',
+              cover: raw?.cover?.url_list?.[0] || '',
+              liveUrl: `https://www.tiktok.com/@${username}/live`,
+              source: 'fetch',
+            };
           } catch { return null; }
         }).filter(r => r && r.username);
       } catch (e) {
