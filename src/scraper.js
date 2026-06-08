@@ -214,65 +214,80 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
     const page = await context.newPage();
 
     const intercepted = new Map(); // username -> room, deduped
+    let capturedSearchHeaders = null; // headers from TikTok's own page-1 API request
+    let capturedSearchUrl = null;     // the exact URL TikTok used for page 1
+
+    function parseItemsIntoIntercepted(items, source) {
+      let added = 0;
+      for (const item of items) {
+        try {
+          const raw = JSON.parse(item?.live_info?.raw_data || '{}');
+          const owner = raw?.owner || {};
+          const username = owner?.display_id || owner?.unique_id || '';
+          if (!username || intercepted.has(username)) continue;
+          const linkMic = raw?.link_mic || {};
+          const battleInfo = linkMic?.battle_info || null;
+          const ownerIdStr = String(owner?.id_str || owner?.id || '');
+          let battle = null;
+          if (battleInfo?.battle_id_str) {
+            const leagueMap = battleInfo.league_info_map || {};
+            const armiesMap = battleInfo.armies || {};
+            const scoresArr = linkMic.battle_scores || [];
+            const myScoreEntry = scoresArr.find(s => String(s.user_id) === ownerIdStr || String(s.user_id_str) === ownerIdStr);
+            const myArmy = armiesMap[ownerIdStr] || {};
+            const myLeagueEntry = leagueMap[ownerIdStr]?.league_info || {};
+            battle = {
+              battleId: battleInfo.battle_id_str,
+              league: myLeagueEntry?.display_text?.content || null,
+              leagueIcon: myLeagueEntry?.icon?.url_list?.[0] || null,
+              score: myScoreEntry?.score ?? myArmy?.hostScore ?? null,
+              hostScore: myArmy?.hostScore ?? null,
+              startTime: battleInfo.battle_settings?.start_time_ms || null,
+              duration: battleInfo.battle_settings?.duration || null,
+            };
+          }
+          intercepted.set(username, {
+            id: raw?.id_str || raw?.id || '',
+            username,
+            nickname: owner?.nickname || '',
+            title: raw?.title || '',
+            viewers: raw?.user_count || 0,
+            totalViewers: raw?.stats?.total_user || 0,
+            comments: raw?.stats?.comment_count || 0,
+            shares: raw?.stats?.share_count || 0,
+            followers: owner?.follow_info?.follower_count || 0,
+            avatar: owner?.avatar_thumb?.url_list?.[0] || '',
+            cover: raw?.cover?.url_list?.[0] || '',
+            streamSnapshot: raw?.stream_snapshot?.urls?.[0] || raw?.stream_snapshot?.url_list?.[0] || null,
+            liveUrl: `https://www.tiktok.com/@${username}/live`,
+            battle,
+            source,
+          });
+          added++;
+        } catch {}
+      }
+      return added;
+    }
+
+    page.on('request', (request) => {
+      const url = request.url();
+      if (!capturedSearchHeaders && url.includes('tiktok.com') && url.includes('/api/search/live/full/')) {
+        capturedSearchHeaders = request.headers();
+        capturedSearchUrl = url;
+        dbg(`[intercept] captured search request headers from ${url.slice(0, 100)}`);
+      }
+    });
+
     page.on('response', async (response) => {
       const url = response.url();
       if (!url.includes('tiktok.com')) return;
-      // Try any tiktok API response — let content decide if it's live search data
       if (!url.includes('/api/')) return;
       try {
         const json = await response.json();
         const items = json?.data || json?.live_list || json?.item_list || json?.lives || [];
         if (!Array.isArray(items) || items.length === 0) return;
-        // Only process responses that contain live room data (has raw_data on any item)
         if (!items.some(i => i?.live_info?.raw_data)) return;
-        let added = 0;
-        for (const item of items) {
-          try {
-            const raw = JSON.parse(item?.live_info?.raw_data || '{}');
-            const owner = raw?.owner || {};
-            const username = owner?.display_id || owner?.unique_id || '';
-            if (!username || intercepted.has(username)) continue;
-            const linkMic = raw?.link_mic || {};
-            const battleInfo = linkMic?.battle_info || null;
-            const ownerIdStr = String(owner?.id_str || owner?.id || '');
-            let battle = null;
-            if (battleInfo?.battle_id_str) {
-              const leagueMap = battleInfo.league_info_map || {};
-              const armiesMap = battleInfo.armies || {};
-              const scoresArr = linkMic.battle_scores || [];
-              const myScoreEntry = scoresArr.find(s => String(s.user_id) === ownerIdStr || String(s.user_id_str) === ownerIdStr);
-              const myArmy = armiesMap[ownerIdStr] || {};
-              const myLeagueEntry = leagueMap[ownerIdStr]?.league_info || {};
-              battle = {
-                battleId: battleInfo.battle_id_str,
-                league: myLeagueEntry?.display_text?.content || null,
-                leagueIcon: myLeagueEntry?.icon?.url_list?.[0] || null,
-                score: myScoreEntry?.score ?? myArmy?.hostScore ?? null,
-                hostScore: myArmy?.hostScore ?? null,
-                startTime: battleInfo.battle_settings?.start_time_ms || null,
-                duration: battleInfo.battle_settings?.duration || null,
-              };
-            }
-            intercepted.set(username, {
-              id: raw?.id_str || raw?.id || '',
-              username,
-              nickname: owner?.nickname || '',
-              title: raw?.title || '',
-              viewers: raw?.user_count || 0,
-              totalViewers: raw?.stats?.total_user || 0,
-              comments: raw?.stats?.comment_count || 0,
-              shares: raw?.stats?.share_count || 0,
-              followers: owner?.follow_info?.follower_count || 0,
-              avatar: owner?.avatar_thumb?.url_list?.[0] || '',
-              cover: raw?.cover?.url_list?.[0] || '',
-              streamSnapshot: raw?.stream_snapshot?.urls?.[0] || raw?.stream_snapshot?.url_list?.[0] || null,
-              liveUrl: `https://www.tiktok.com/@${username}/live`,
-              battle,
-              source: 'intercepted',
-            });
-            added++;
-          } catch {}
-        }
+        const added = parseItemsIntoIntercepted(items, 'intercepted');
         if (added > 0) log(`[intercept] +${added} rooms (total=${intercepted.size}) from ${url.slice(0, 80)}`);
       } catch {}
     });
@@ -325,81 +340,61 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       dbg('[diag]', JSON.stringify(pageDiag));
     }
 
-    // Seed from first intercepted page (fires when the page initially loads)
+    // Wait for page 1 to load and be intercepted
     const MAX_ROOMS = 200;
-    await page.waitForTimeout(2000); // let initial load complete
+    await page.waitForTimeout(2500);
+    log(`[scrape] page 1 intercepted ${intercepted.size} rooms`);
 
-    // Trigger TikTok's own pagination by firing scroll events on all possible containers
-    const MAX_SCROLLS = 10;
-    for (let s = 1; s <= MAX_SCROLLS && intercepted.size < MAX_ROOMS; s++) {
-      const prevSize = intercepted.size;
-      await page.evaluate(() => {
-        // Fire scroll events on window, document, and any overflow containers TikTok uses
-        window.scrollTo(0, document.body.scrollHeight);
-        window.dispatchEvent(new Event('scroll', { bubbles: true }));
-        document.dispatchEvent(new Event('scroll', { bubbles: true }));
-        document.body.dispatchEvent(new Event('scroll', { bubbles: true }));
-        // Try any scrollable divs (TikTok virtualises its lists)
-        document.querySelectorAll('div').forEach(el => {
-          if (el.scrollHeight > el.clientHeight) {
-            el.scrollTop = el.scrollHeight;
-            el.dispatchEvent(new Event('scroll', { bubbles: true }));
+    // Replay TikTok's own API headers to fetch pages 2, 3, ...
+    // capturedSearchHeaders contains X-Bogus, _signature, msToken etc. that TikTok's JS generates
+    if (capturedSearchHeaders && capturedSearchUrl) {
+      const baseUrl = new URL(capturedSearchUrl);
+      const kw = baseUrl.searchParams.get('keyword') || keyword;
+      const MAX_PAGES = 8;
+      let offset = 30; // page 2 starts here
+
+      for (let page_num = 2; page_num <= MAX_PAGES && intercepted.size < MAX_ROOMS; page_num++) {
+        try {
+          // Build URL preserving all original params, just updating offset
+          const nextUrl = new URL(capturedSearchUrl);
+          nextUrl.searchParams.set('offset', String(offset));
+          nextUrl.searchParams.set('count', '30');
+
+          dbg(`[paginate] fetching page ${page_num} offset=${offset}`);
+          const resp = await context.request.fetch(nextUrl.toString(), {
+            method: 'GET',
+            headers: capturedSearchHeaders,
+          });
+
+          if (!resp.ok()) {
+            dbg(`[paginate] page ${page_num} HTTP ${resp.status()}, stopping`);
+            break;
           }
-        });
-      });
-      await page.waitForTimeout(2500);
-      if (intercepted.size === prevSize) {
-        dbg(`[scrape] scroll ${s}: no new rooms, stopping`);
-        break;
-      }
-      log(`[scrape] scroll ${s}: +${intercepted.size - prevSize} rooms (total=${intercepted.size})`);
-    }
 
-    function parseRawItem(item) {
-      try {
-        const raw = JSON.parse(item?.live_info?.raw_data || '{}');
-        const owner = raw?.owner || {};
-        const username = owner?.display_id || owner?.unique_id || '';
-        if (!username) return null;
-        const linkMic = raw?.link_mic || {};
-        const battleInfo = linkMic?.battle_info || null;
-        const ownerIdStr = String(owner?.id_str || owner?.id || '');
-        let battle = null;
-        if (battleInfo?.battle_id_str) {
-          const leagueMap = battleInfo.league_info_map || {};
-          const armiesMap = battleInfo.armies || {};
-          const scoresArr = linkMic.battle_scores || [];
-          const myScoreEntry = scoresArr.find(s => String(s.user_id) === ownerIdStr || String(s.user_id_str) === ownerIdStr);
-          const myArmy = armiesMap[ownerIdStr] || {};
-          const myLeagueEntry = leagueMap[ownerIdStr]?.league_info || {};
-          battle = {
-            battleId: battleInfo.battle_id_str,
-            league: myLeagueEntry?.display_text?.content || null,
-            leagueIcon: myLeagueEntry?.icon?.url_list?.[0] || null,
-            score: myScoreEntry?.score ?? myArmy?.hostScore ?? null,
-            hostScore: myArmy?.hostScore ?? null,
-            startTime: battleInfo.battle_settings?.start_time_ms || null,
-            duration: battleInfo.battle_settings?.duration || null,
-          };
+          const json = await resp.json();
+          const items = json?.data || [];
+          const hasMore = json?.has_more === 1 || json?.has_more === true;
+          const nextCursor = json?.cursor ?? null;
+
+          if (!Array.isArray(items) || items.length === 0) {
+            dbg(`[paginate] page ${page_num} empty response, stopping`);
+            break;
+          }
+
+          const added = parseItemsIntoIntercepted(items, 'paginated');
+          log(`[paginate] page ${page_num} offset=${offset}: +${added} new (total=${intercepted.size}) has_more=${hasMore}`);
+
+          if (!hasMore) break;
+          offset = nextCursor !== null ? nextCursor : offset + 30;
+          // Small delay to avoid rate limiting
+          await page.waitForTimeout(500);
+        } catch (err) {
+          dbg(`[paginate] page ${page_num} error: ${err.message}`);
+          break;
         }
-        return {
-          id: raw?.id_str || raw?.id || '',
-          username,
-          nickname: owner?.nickname || '',
-          title: raw?.title || '',
-          viewers: raw?.user_count || 0,
-          totalViewers: raw?.stats?.total_user || 0,
-          comments: raw?.stats?.comment_count || 0,
-          shares: raw?.stats?.share_count || 0,
-          followers: owner?.follow_info?.follower_count || 0,
-          avatar: owner?.avatar_thumb?.url_list?.[0] || '',
-          cover: raw?.cover?.url_list?.[0] || '',
-          streamSnapshot: raw?.stream_snapshot?.urls?.[0] || raw?.stream_snapshot?.url_list?.[0] || null,
-          liveUrl: `https://www.tiktok.com/@${username}/live`,
-          battle,
-          source: 'fetch',
-        };
-      } catch { return null; }
+      }
+    } else {
+      dbg('[paginate] no captured search headers — only page 1 available');
     }
 
     const fetchedRooms = Array.from(intercepted.values());
