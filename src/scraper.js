@@ -55,6 +55,7 @@ async function launchBrowser() {
 
   return chromium.launch({
     headless: false,
+    channel: 'chrome',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
