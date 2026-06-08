@@ -336,12 +336,14 @@ export async function scrapeTikTokLive(keyword) {
           firstSample: JSON.stringify(first).slice(0, 400),
         });
         return items.map(item => {
-          const user = item?.author || item?.user || item?.liveRoom?.userInfo || {};
-          const username = user?.uniqueId || user?.unique_id || user?.nickname || item?.nickname || '';
-          const title = item?.desc || item?.title || item?.liveRoom?.title || '';
-          const viewers = item?.stats?.memberCount || item?.liveRoom?.userCount || 0;
-          return { username, title, viewers, liveUrl: `https://www.tiktok.com/@${username}/live`, source: 'fetch' };
-        }).filter(r => r.username);
+          try {
+            const raw = JSON.parse(item?.live_info?.raw_data || '{}');
+            const username = raw?.owner?.display_id || raw?.owner?.nickname || '';
+            const title = raw?.title || '';
+            const viewers = raw?.user_count || 0;
+            return { username, title, viewers, liveUrl: `https://www.tiktok.com/@${username}/live`, source: 'fetch' };
+          } catch { return null; }
+        }).filter(r => r && r.username);
       } catch (e) {
         window.__ttApiDiag = 'error: ' + e.message;
         return [];
