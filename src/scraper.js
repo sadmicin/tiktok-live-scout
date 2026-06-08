@@ -307,15 +307,22 @@ export async function scrapeTikTokLive(keyword) {
         });
         const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
         const json = await res.json();
-        window.__ttApiDiag = JSON.stringify({ status: res.status, keys: Object.keys(json), dataLen: json?.data?.length });
         const items = json?.data || json?.live_list || json?.item_list || [];
-        return items.map(item => ({
-          username: item?.author?.uniqueId || item?.user?.unique_id || '',
-          title: item?.desc || item?.title || '',
-          viewers: item?.stats?.memberCount || 0,
-          liveUrl: `https://www.tiktok.com/@${item?.author?.uniqueId || ''}/live`,
-          source: 'fetch',
-        })).filter(r => r.username);
+        const first = items[0] || {};
+        window.__ttApiDiag = JSON.stringify({
+          status: res.status,
+          dataLen: items.length,
+          firstKeys: Object.keys(first),
+          firstAuthorKeys: Object.keys(first?.author || first?.user || first?.liveRoom || {}),
+          firstSample: JSON.stringify(first).slice(0, 400),
+        });
+        return items.map(item => {
+          const user = item?.author || item?.user || item?.liveRoom?.userInfo || {};
+          const username = user?.uniqueId || user?.unique_id || user?.nickname || item?.nickname || '';
+          const title = item?.desc || item?.title || item?.liveRoom?.title || '';
+          const viewers = item?.stats?.memberCount || item?.liveRoom?.userCount || 0;
+          return { username, title, viewers, liveUrl: `https://www.tiktok.com/@${username}/live`, source: 'fetch' };
+        }).filter(r => r.username);
       } catch (e) {
         window.__ttApiDiag = 'error: ' + e.message;
         return [];
