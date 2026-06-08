@@ -223,8 +223,6 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
     const page = await context.newPage();
 
     const intercepted = new Map(); // username -> room, deduped
-    let capturedSearchHeaders = null; // headers from TikTok's own page-1 API request
-    let capturedSearchUrl = null;     // the exact URL TikTok used for page 1
 
     function parseItemsIntoIntercepted(items, source) {
       let added = 0;
@@ -278,18 +276,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       return added;
     }
 
-    page.on('request', (request) => {
-      const url = request.url();
-      // Capture security headers from TikTok's own search API call for pagination replay
-      if (!capturedSearchHeaders && url.includes('tiktok.com') &&
-          (url.includes('/api/search/live') || url.includes('/api/search/?'))) {
-        capturedSearchHeaders = request.headers();
-        capturedSearchUrl = url;
-        log(`[intercept] captured API headers from ${url.slice(0, 120)}`);
-      }
-    });
-
-    page.on('response', async (response) => {
+page.on('response', async (response) => {
       const url = response.url();
       if (!url.includes('tiktok.com') || !url.includes('/api/')) return;
       // Log every API URL so we can see what TikTok is calling
@@ -354,65 +341,54 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       dbg('[diag]', JSON.stringify(pageDiag));
     }
 
-    // Wait for page 1 to load and be intercepted — give TikTok up to 8s
+    // Wait briefly for TikTok cookies/tokens to be set during page load
+    await page.waitForTimeout(2000);
+
+    // Fetch live search results directly from the browser context.
+    // This uses the browser's cookie jar (msToken, ttwid, etc.) so TikTok
+    // sees a credentialed same-origin request — works even when the page renders blank.
     const MAX_ROOMS = 200;
-    // Check every second; stop early if we have rooms
-    for (let w = 0; w < 8; w++) {
-      await page.waitForTimeout(1000);
-      if (intercepted.size > 0) break;
-    }
-    log(`[scrape] page 1 intercepted ${intercepted.size} rooms`);
+    const MAX_PAGES = 8;
+    const fetchParams = {
+      keyword,
+      count: '30',
+      aid: '1988',
+      app_language: 'en',
+      app_name: 'tiktok_web',
+      browser_language: 'en-US',
+      browser_name: 'Mozilla',
+      browser_online: 'true',
+      browser_platform: 'Win32',
+      browser_version: '5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      channel: 'tiktok_web',
+      cookie_enabled: 'true',
+      device_platform: 'web_pc',
+      from_page: 'search',
+      os: 'windows',
+      region: 'US',
+      tz_name: 'America/New_York',
+    };
 
-    // Replay TikTok's own API headers to fetch pages 2, 3, ...
-    // capturedSearchHeaders contains X-Bogus, _signature, msToken etc. that TikTok's JS generates
-    if (capturedSearchHeaders && capturedSearchUrl) {
-      const baseUrl = new URL(capturedSearchUrl);
-      const kw = baseUrl.searchParams.get('keyword') || keyword;
-      const MAX_PAGES = 8;
-      let offset = 30; // page 2 starts here
-
-      for (let page_num = 2; page_num <= MAX_PAGES && intercepted.size < MAX_ROOMS; page_num++) {
+    for (let p = 0; p < MAX_PAGES && intercepted.size < MAX_ROOMS; p++) {
+      const offset = p * 30;
+      const result = await page.evaluate(async ({ fp, off }) => {
         try {
-          // Build URL preserving all original params, just updating offset
-          const nextUrl = new URL(capturedSearchUrl);
-          nextUrl.searchParams.set('offset', String(offset));
-          nextUrl.searchParams.set('count', '30');
+          const params = new URLSearchParams({ ...fp, offset: String(off) });
+          const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
+          if (!res.ok) return { error: res.status };
+          const json = await res.json();
+          return { ok: true, hasMore: json?.has_more, data: json?.data || [] };
+        } catch (e) { return { error: String(e) }; }
+      }, { fp: fetchParams, off: offset });
 
-          dbg(`[paginate] fetching page ${page_num} offset=${offset}`);
-          const resp = await context.request.fetch(nextUrl.toString(), {
-            method: 'GET',
-            headers: capturedSearchHeaders,
-          });
-
-          if (!resp.ok()) {
-            dbg(`[paginate] page ${page_num} HTTP ${resp.status()}, stopping`);
-            break;
-          }
-
-          const json = await resp.json();
-          const items = json?.data || [];
-          const hasMore = json?.has_more === 1 || json?.has_more === true;
-          const nextCursor = json?.cursor ?? null;
-
-          if (!Array.isArray(items) || items.length === 0) {
-            dbg(`[paginate] page ${page_num} empty response, stopping`);
-            break;
-          }
-
-          const added = parseItemsIntoIntercepted(items, 'paginated');
-          log(`[paginate] page ${page_num} offset=${offset}: +${added} new (total=${intercepted.size}) has_more=${hasMore}`);
-
-          if (!hasMore) break;
-          offset = nextCursor !== null ? nextCursor : offset + 30;
-          // Small delay to avoid rate limiting
-          await page.waitForTimeout(500);
-        } catch (err) {
-          dbg(`[paginate] page ${page_num} error: ${err.message}`);
-          break;
-        }
+      if (result.error) {
+        log(`[fetch] page ${p+1} offset=${offset} error=${result.error}`);
+        break;
       }
-    } else {
-      dbg('[paginate] no captured search headers — only page 1 available');
+      const added = parseItemsIntoIntercepted(result.data || [], 'fetch');
+      log(`[fetch] page ${p+1} offset=${offset}: +${added} new (total=${intercepted.size}) hasMore=${result.hasMore}`);
+      if (!result.hasMore) break;
+      await page.waitForTimeout(300);
     }
 
     const fetchedRooms = Array.from(intercepted.values());
