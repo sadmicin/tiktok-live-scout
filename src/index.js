@@ -4,8 +4,8 @@ import net from 'net';
 import { scrapeTikTokLive, debugTikTokPage } from './scraper.js';
 import { commitJsonToGitHub, commitImageToGitHub } from './githubLogger.js';
 
-const keywords = process.env.KEYWORDS
-  ? process.env.KEYWORDS.split(',').map(k => k.trim()).filter(Boolean)
+const keywords = fs.existsSync('keywords.txt')
+  ? fs.readFileSync('keywords.txt', 'utf8').split('\n').map(k => k.trim()).filter(Boolean)
   : ['Live'];
 const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || 'unknown';
 const port = process.env.PORT || 3000;
