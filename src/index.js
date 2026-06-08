@@ -34,6 +34,8 @@ async function runScrape() {
   if (isRunning) return latestRun;
 
   isRunning = true;
+  const runStart = Date.now();
+  console.log(`[run] starting — ${keywords.length} keyword(s): ${keywords.join(', ')}`);
 
   try {
     const allResults = [];
@@ -45,9 +47,14 @@ async function runScrape() {
       screenshotBase64 = result.screenshotBase64 || null;
     }
 
+    const totalDurationMs = Date.now() - runStart;
+    const totalRooms = allResults.reduce((sum, r) => sum + (r.roomCount || 0), 0);
+    console.log(`[run] complete — ${totalRooms} rooms across ${keywords.length} keywords in ${(totalDurationMs/1000).toFixed(1)}s`);
+
     latestRun = {
       created_at: new Date().toISOString(),
       commit: commitHash,
+      durationMs: totalDurationMs,
       results: allResults
     };
 
