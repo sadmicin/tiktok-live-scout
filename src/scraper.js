@@ -206,18 +206,11 @@ async function scrollAndCollect(page, log, scrollRounds = 12) {
   return Array.from(seen.values());
 }
 
-async function scrapeTikTokLiveOnce(keyword, log, dbg) {
+async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
   const startTime = Date.now();
-  const browser = await launchBrowser();
   let screenshotBase64 = null;
 
   try {
-    const context = await newTikTokContext(browser);
-
-    if (!hasGuestState()) {
-      dbg('[scrape] no guest state, will build during main navigation');
-    }
-
     const page = await context.newPage();
 
     const apiRooms = [];
@@ -404,7 +397,7 @@ async function scrapeTikTokLiveOnce(keyword, log, dbg) {
     await context.storageState({ path: STORAGE_STATE_PATH });
     screenshotBase64 = (await page.screenshot({ fullPage: false, type: 'png' })).toString('base64');
 
-    await browser.close();
+    await page.close();
 
     const durationMs = Date.now() - startTime;
     log(`[scrape] done keyword="${keyword}" rooms=${rooms.length} duration=${(durationMs/1000).toFixed(1)}s`);
@@ -420,7 +413,6 @@ async function scrapeTikTokLiveOnce(keyword, log, dbg) {
   } catch (err) {
     const durationMs = Date.now() - startTime;
     log(`[scrape] error keyword="${keyword}" duration=${(durationMs/1000).toFixed(1)}s error=${err.message}`);
-    try { await browser.close(); } catch {}
     return {
       keyword,
       collected_at: new Date().toISOString(),
@@ -438,13 +430,13 @@ function isTunnelError(error) {
   return (error || '').toLowerCase().includes('tunnel');
 }
 
-export async function scrapeTikTokLive(keyword, maxRetries = 3) {
+export async function scrapeTikTokLive(keyword, context, maxRetries = 3) {
   const { log, dbg, lines: runLog } = makeLogger();
   const startTime = Date.now();
   log(`[scrape] start keyword="${keyword}"`);
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const result = await scrapeTikTokLiveOnce(keyword, log, dbg);
+    const result = await scrapeTikTokLiveOnce(keyword, context, log, dbg);
     if (result.mode !== 'failed' || !isTunnelError(result.error)) {
       return { ...result, runLog };
     }
@@ -465,6 +457,24 @@ export async function scrapeTikTokLive(keyword, maxRetries = 3) {
     runLog,
     screenshotBase64: null,
   };
+}
+
+export async function scrapeAllKeywords(keywords, maxRetries = 3) {
+  const browser = await launchBrowser();
+  const context = await newTikTokContext(browser);
+  console.log(`[run] browser launched, scraping ${keywords.length} keyword(s)`);
+
+  const results = [];
+  try {
+    for (const keyword of keywords) {
+      const result = await scrapeTikTokLive(keyword, context, maxRetries);
+      results.push(result);
+    }
+  } finally {
+    try { await browser.close(); } catch {}
+  }
+
+  return results;
 }
 
 export async function debugTikTokPage(keyword = 'battle') {

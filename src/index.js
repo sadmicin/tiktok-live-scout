@@ -1,7 +1,7 @@
 import express from 'express';
 import fs from 'fs';
 import net from 'net';
-import { scrapeTikTokLive, debugTikTokPage } from './scraper.js';
+import { scrapeAllKeywords, debugTikTokPage } from './scraper.js';
 import { commitJsonToGitHub, commitImageToGitHub } from './githubLogger.js';
 
 const keywords = fs.existsSync('keywords.txt')
@@ -38,19 +38,8 @@ async function runScrape() {
   console.log(`[run] starting — ${keywords.length} keyword(s): ${keywords.join(', ')}`);
 
   try {
-    const allResults = [];
-    let screenshotBase64 = null;
-
-    for (const keyword of keywords) {
-      const result = await scrapeTikTokLive(keyword);
-      allResults.push(result);
-      screenshotBase64 = result.screenshotBase64 || null;
-      // If all retries exhausted on first keyword, proxy is down — abort early
-      if (result.mode === 'failed' && allResults.length === 1 && result.error?.includes('Max retries')) {
-        console.log('[run] proxy appears down, aborting run early');
-        break;
-      }
-    }
+    const allResults = await scrapeAllKeywords(keywords);
+    const screenshotBase64 = allResults.at(-1)?.screenshotBase64 || null;
 
     const totalDurationMs = Date.now() - runStart;
     const totalRooms = allResults.reduce((sum, r) => sum + (r.roomCount || 0), 0);
