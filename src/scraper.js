@@ -296,23 +296,17 @@ page.on('response', async (response) => {
     const liveUrl = `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
 
     if (hasGuestState()) {
-      dbg(`[scrape] fast path — navigating directly to live search`);
+      dbg(`[scrape] fast path`);
+      await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForTimeout(2000);
+    } else {
+      dbg(`[scrape] slow path`);
       await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForTimeout(3000);
-    } else {
-      // Warm up on the main page first so TikTok's app fully initialises
-      dbg(`[scrape] slow path — warming up on main page`);
-      await page.goto('https://www.tiktok.com/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForTimeout(4000);
-      await dismissLoginPopup(page);
-      await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForTimeout(5000);
     }
 
-    log('[scrape] current url:', page.url());
-
     const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0);
-    log(`[scrape] bodyTextLength=${bodyLen}`);
+    log(`[scrape] url=${page.url().slice(0,80)} bodyLen=${bodyLen}`);
 
     const MAX_ROOMS = 200;
     const MAX_PAGES = 8;
