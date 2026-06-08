@@ -5,6 +5,8 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
 chromium.use(StealthPlugin());
 
+const DEBUG = process.env.DEBUG !== 'FALSE' && process.env.DEBUG !== 'false';
+
 function makeLogger() {
   const lines = [];
   const log = (...args) => {
@@ -13,7 +15,12 @@ function makeLogger() {
     console.log(msg);
     lines.push(line);
   };
-  return { log, lines };
+  // debug-only log: captured in runLog but only printed to console in DEBUG mode
+  const dbg = (...args) => {
+    if (!DEBUG) return;
+    log(...args);
+  };
+  return { log, dbg, lines };
 }
 
 const STORAGE_STATE_PATH = path.join(process.cwd(), 'output', 'tiktok-guest-state.json');
@@ -49,6 +56,8 @@ async function launchBrowser() {
   console.log('[proxy] server:', proxyServer || 'NONE — set PROXY_SERVER env var');
   console.log('[proxy] username:', proxyUsername ? proxyUsername.slice(0, 20) + '…' : 'NONE');
 
+  // Connect to Bright Data proxy over plain HTTP regardless of port —
+  // the SSL capability refers to target sites, not the proxy connection itself.
   const proxyUrl = proxyServer ? `http://${proxyServer}` : null;
 
   return chromium.launch({
@@ -102,22 +111,28 @@ async function dismissLoginPopup(page) {
   }
 }
 
+// Extract live stream cards from the current page DOM.
+// Returns array of { username, title, viewers, viewersRaw, liveUrl, avatarSrc }
 function extractLiveCards() {
   const results = new Map();
 
+  // TikTok search/live cards have links to /@username/live
   const liveLinks = Array.from(document.querySelectorAll('a[href*="/live"]'));
 
   for (const link of liveLinks) {
     const href = link.href || '';
+    // Match /@username/live
     const m = href.match(/\/@([^/?#]+)\/live/);
     if (!m) continue;
     const username = m[1];
     if (results.has(username)) continue;
 
+    // Walk up to find the card container
     let card = link;
     for (let i = 0; i < 8; i++) {
       card = card.parentElement;
       if (!card) break;
+      // Stop at a reasonably-sized container
       if (card.querySelectorAll('a').length >= 1 && card.innerText && card.innerText.length > 10) break;
     }
     if (!card) card = link;
@@ -125,6 +140,7 @@ function extractLiveCards() {
     const text = (card.innerText || '').trim();
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
+    // Viewer count: look for patterns like "1.2K watching", "5K viewers", or just numbers near "watching"
     let viewersRaw = null;
     let viewers = 0;
     for (const line of lines) {
@@ -138,8 +154,10 @@ function extractLiveCards() {
       }
     }
 
+    // Title: first meaningful line that isn't the username or viewer count
     const title = lines.find(l => l !== username && l !== `@${username}` && l !== viewersRaw && l.length > 1 && !/^\d/.test(l)) || '';
 
+    // Avatar image
     const img = card.querySelector('img');
     const avatarSrc = img?.src || img?.currentSrc || null;
 
@@ -173,11 +191,13 @@ async function scrollAndCollect(page, log, scrollRounds = 12) {
     return newCount;
   };
 
+  // Initial harvest after page load
   await harvest(0);
 
   for (let i = 1; i <= scrollRounds; i++) {
     await page.mouse.wheel(0, 1200);
     await page.waitForTimeout(1800);
+    // Extra wait every 4 rounds to let lazy-loaded content appear
     if (i % 4 === 0) await page.waitForTimeout(1500);
     await harvest(i);
   }
@@ -186,7 +206,8 @@ async function scrollAndCollect(page, log, scrollRounds = 12) {
 }
 
 export async function scrapeTikTokLive(keyword) {
-  const { log, lines: runLog } = makeLogger();
+  const { log, dbg, lines: runLog } = makeLogger();
+  const startTime = Date.now();
   log(`[scrape] start keyword="${keyword}"`);
 
   const browser = await launchBrowser();
@@ -196,19 +217,18 @@ export async function scrapeTikTokLive(keyword) {
     const context = await newTikTokContext(browser);
 
     if (!hasGuestState()) {
-      log('[scrape] no guest state, will build during main navigation');
+      dbg('[scrape] no guest state, will build during main navigation');
     }
 
     const page = await context.newPage();
 
-    // Intercept TikTok API calls — log all, collect LIVE search results
     const apiRooms = [];
     page.on('response', async (response) => {
       const url = response.url();
       if (!url.includes('tiktok.com')) return;
       const status = response.status();
       if (url.includes('/api/')) {
-        log(`[net] ${status} ${url.slice(0, 120)}`);
+        dbg(`[net] ${status} ${url.slice(0, 120)}`);
       }
       if (url.includes('/api/search/') || (url.includes('live') && url.includes('list'))) {
         try {
@@ -225,31 +245,29 @@ export async function scrapeTikTokLive(keyword) {
                 apiRooms.push({ username, title, viewers, liveUrl: `https://www.tiktok.com/@${username}/live`, source: 'api' });
               }
             }
-            log(`[api] intercepted ${items.length} items from ${url.slice(0, 100)}`);
+            dbg(`[api] intercepted ${items.length} items from ${url.slice(0, 100)}`);
           }
         } catch {}
       }
     });
 
     const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
-    log(`[scrape] navigating to search page: ${searchUrl}`);
+    dbg(`[scrape] navigating to ${searchUrl}`);
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await dismissLoginPopup(page);
     await page.waitForTimeout(3000);
 
-    log('[scrape] clicking search LIVE tab...');
     let liveTabClicked = false;
-
     try {
       const liveTabLink = page.locator('a[href*="/search/live"]').first();
       await liveTabLink.click({ timeout: 8000 });
       liveTabClicked = true;
-      log('[scrape] clicked /search/live anchor');
+      dbg('[scrape] clicked /search/live anchor');
     } catch {}
 
     if (!liveTabClicked) {
       const liveUrl = `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
-      log('[scrape] fallback: goto', liveUrl);
+      dbg('[scrape] fallback: goto', liveUrl);
       await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     }
 
@@ -259,36 +277,29 @@ export async function scrapeTikTokLive(keyword) {
         () => document.querySelectorAll('a[href]').length > 5 || (document.body?.innerText?.length || 0) > 100,
         { timeout: 10000 }
       );
-      log('[scrape] content detected, proceeding');
     } catch {
-      log('[scrape] content wait timed out, proceeding anyway');
+      dbg('[scrape] content wait timed out, proceeding anyway');
     }
     await page.waitForTimeout(2000);
-    log('[scrape] current url after tab click:', page.url());
+    dbg('[scrape] current url:', page.url());
 
-    const pageDiag = await page.evaluate(() => {
-      const allLinks = Array.from(document.querySelectorAll('a[href]'));
-      const hrefs = [...new Set(allLinks.map(a => a.href.replace(/\?.*$/, '')))].slice(0, 60);
-      const bodyText = (document.body?.innerText || '').slice(0, 1500);
-      return {
-        url: location.href,
-        title: document.title,
-        anchorCount: allLinks.length,
-        hrefs,
-        bodyTextLength: document.body?.innerText?.length || 0,
-        bodyTextSample: bodyText,
-        hasLiveHrefs: allLinks.some(a => /\/@[^/]+\/live/.test(a.href)),
-        hasUserHrefs: allLinks.some(a => /\/@[^/]+$/.test(a.href)),
-      };
-    });
-    log('[diag] url:', pageDiag.url);
-    log('[diag] title:', pageDiag.title);
-    log('[diag] anchors:', pageDiag.anchorCount, '| hasLiveHrefs:', pageDiag.hasLiveHrefs, '| hasUserHrefs:', pageDiag.hasUserHrefs);
-    log('[diag] bodyLen:', pageDiag.bodyTextLength);
-    log('[diag] bodyText:', pageDiag.bodyTextSample.slice(0, 800));
-    log('[diag] hrefs:', pageDiag.hrefs.slice(0, 30).join(' | '));
+    if (DEBUG) {
+      const pageDiag = await page.evaluate(() => {
+        const allLinks = Array.from(document.querySelectorAll('a[href]'));
+        const hrefs = [...new Set(allLinks.map(a => a.href.replace(/\?.*$/, '')))].slice(0, 60);
+        return {
+          url: location.href,
+          title: document.title,
+          anchorCount: allLinks.length,
+          hrefs,
+          bodyTextLength: document.body?.innerText?.length || 0,
+          bodyTextSample: (document.body?.innerText || '').slice(0, 800),
+          hasLiveHrefs: allLinks.some(a => /\/@[^/]+\/live/.test(a.href)),
+        };
+      });
+      dbg('[diag]', JSON.stringify(pageDiag));
+    }
 
-    // Call the LIVE search API directly from page context (cookies + WebId already set)
     const fetchedRooms = await page.evaluate(async (kw) => {
       try {
         const params = new URLSearchParams({
@@ -302,13 +313,7 @@ export async function scrapeTikTokLive(keyword) {
         const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
         const json = await res.json();
         const items = json?.data || json?.live_list || json?.item_list || [];
-        const first = items[0] || {};
-        window.__ttApiDiag = JSON.stringify({
-          status: res.status,
-          dataLen: items.length,
-          firstKeys: Object.keys(first),
-          firstSample: JSON.stringify(first).slice(0, 200),
-        });
+        window.__ttApiDiag = JSON.stringify({ status: res.status, dataLen: items.length });
         return items.map(item => {
           try {
             const raw = JSON.parse(item?.live_info?.raw_data || '{}');
@@ -365,8 +370,8 @@ export async function scrapeTikTokLive(keyword) {
     }, keyword);
 
     const diagVal = await page.evaluate(() => window.__ttApiDiag || 'no diag');
-    log('[fetch-api] diag:', diagVal);
-    log('[fetch-api] rooms found:', fetchedRooms.length);
+    dbg('[fetch-api] diag:', diagVal);
+    log(`[scrape] keyword="${keyword}" rooms=${fetchedRooms.length}`);
 
     // Fetch images directly (no proxy) — signed URLs contain auth in query params,
     // proxy is only needed for TikTok page navigation and the search API call.
@@ -390,34 +395,39 @@ export async function scrapeTikTokLive(keyword) {
       }));
 
       const embedded = fetchedRooms.filter(r => r.streamSnapshotBase64).length;
-      log(`[images] embedded ${embedded}/${fetchedRooms.length} snapshots as base64`);
+      dbg(`[images] embedded ${embedded}/${fetchedRooms.length} snapshots`);
     }
 
     const domRooms = fetchedRooms.length > 0 ? [] : await scrollAndCollect(page, log, 12);
     const rooms = fetchedRooms.length > 0 ? fetchedRooms : (apiRooms.length > 0 ? apiRooms : domRooms);
-    log(`[scrape] fetchedRooms=${fetchedRooms.length} apiRooms=${apiRooms.length} domRooms=${domRooms.length}`);
+    dbg(`[scrape] fetchedRooms=${fetchedRooms.length} apiRooms=${apiRooms.length} domRooms=${domRooms.length}`);
 
+    // Save updated guest state
     await context.storageState({ path: STORAGE_STATE_PATH });
     screenshotBase64 = (await page.screenshot({ fullPage: false, type: 'png' })).toString('base64');
 
     await browser.close();
 
-    log(`[scrape] done. rooms=${rooms.length}`);
+    const durationMs = Date.now() - startTime;
+    log(`[scrape] done keyword="${keyword}" rooms=${rooms.length} duration=${(durationMs/1000).toFixed(1)}s`);
     return {
       keyword,
       collected_at: new Date().toISOString(),
-      mode: 'dom-scroll',
+      durationMs,
+      mode: 'fetch',
       roomCount: rooms.length,
       rooms,
       runLog,
       screenshotBase64,
     };
   } catch (err) {
-    log(`[scrape] fatal error: ${err.message}`);
+    const durationMs = Date.now() - startTime;
+    log(`[scrape] error keyword="${keyword}" duration=${(durationMs/1000).toFixed(1)}s error=${err.message}`);
     try { await browser.close(); } catch {}
     return {
       keyword,
       collected_at: new Date().toISOString(),
+      durationMs,
       mode: 'failed',
       error: err.message,
       roomCount: 0,
