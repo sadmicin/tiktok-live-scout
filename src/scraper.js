@@ -53,6 +53,7 @@ async function launchBrowser() {
 
   return chromium.launch({
     headless: false,
+    channel: 'chrome',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -102,23 +103,18 @@ async function dismissLoginPopup(page) {
   }
 }
 
-// Extract live stream cards from the current page DOM.
-// Returns array of { username, title, viewers, viewersRaw, liveUrl, avatarSrc }
 function extractLiveCards() {
   const results = new Map();
 
-  // TikTok search/live cards have links to /@username/live
   const liveLinks = Array.from(document.querySelectorAll('a[href*="/live"]'));
 
   for (const link of liveLinks) {
     const href = link.href || '';
-    // Match /@username/live
     const m = href.match(/\/@([^/?#]+)\/live/);
     if (!m) continue;
     const username = m[1];
     if (results.has(username)) continue;
 
-    // Walk up to find the card container
     let card = link;
     for (let i = 0; i < 8; i++) {
       card = card.parentElement;
@@ -234,7 +230,6 @@ export async function scrapeTikTokLive(keyword) {
       await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     }
 
-    // Wait for content to render — TikTok is a heavy SPA
     await page.waitForTimeout(4000);
     try {
       await page.waitForFunction(
