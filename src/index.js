@@ -99,7 +99,7 @@ app.get('/proxy-test', (_req, res) => {
   const password = process.env.PROXY_PASSWORD || '';
   const auth = Buffer.from(`${username}:${password}`).toString('base64');
 
-  const result = { server, host, port: proxyPort, connectResponse: null, error: null };
+  const result = { server, host, port: proxyPort, rawResponse: null, error: null };
 
   const socket = net.createConnection({ host, port: proxyPort }, () => {
     const req = [
@@ -116,8 +116,9 @@ app.get('/proxy-test', (_req, res) => {
   socket.setTimeout(10000);
   socket.on('data', chunk => {
     data += chunk.toString();
-    if (data.includes('\r\n')) {
-      result.connectResponse = data.split('\r\n')[0];
+    // Wait for end of headers
+    if (data.includes('\r\n\r\n')) {
+      result.rawResponse = data.split('\r\n\r\n')[0];
       socket.destroy();
     }
   });
