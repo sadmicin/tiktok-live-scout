@@ -1,6 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+
+chromium.use(StealthPlugin());
 
 function makeLogger() {
   const lines = [];
@@ -85,13 +88,6 @@ async function newTikTokContext(browser) {
       'accept-language': 'en-US,en;q=0.9',
     },
     ...(hasGuestState() ? { storageState: STORAGE_STATE_PATH } : {})
-  });
-
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    Object.defineProperty(window, 'chrome', { get: () => ({ runtime: {} }) });
-    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
   });
 
   return context;
