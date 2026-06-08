@@ -213,33 +213,66 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
   try {
     const page = await context.newPage();
 
-    const apiRooms = [];
+    const intercepted = new Map(); // username -> room, deduped
     page.on('response', async (response) => {
       const url = response.url();
       if (!url.includes('tiktok.com')) return;
-      const status = response.status();
-      if (url.includes('/api/')) {
-        dbg(`[net] ${status} ${url.slice(0, 120)}`);
-      }
-      if (url.includes('/api/search/') || (url.includes('live') && url.includes('list'))) {
-        try {
-          const json = await response.json();
-          const items = json?.data || json?.live_list || json?.item_list || json?.lives || [];
-          if (Array.isArray(items) && items.length > 0) {
-            for (const item of items) {
-              const user = item?.author || item?.user || item?.room?.owner || {};
-              const stats = item?.stats || item?.room_info || item?.room || {};
-              const username = user?.uniqueId || user?.unique_id || user?.nickname;
-              const viewers = stats?.memberCount || stats?.user_count || stats?.viewerCount || 0;
-              const title = item?.desc || item?.title || item?.room?.title || '';
-              if (username) {
-                apiRooms.push({ username, title, viewers, liveUrl: `https://www.tiktok.com/@${username}/live`, source: 'api' });
-              }
+      if (url.includes('/api/')) dbg(`[net] ${response.status()} ${url.slice(0, 120)}`);
+      if (!url.includes('/api/search/live')) return;
+      try {
+        const json = await response.json();
+        const items = json?.data || json?.live_list || json?.item_list || json?.lives || [];
+        if (!Array.isArray(items) || items.length === 0) return;
+        let added = 0;
+        for (const item of items) {
+          try {
+            const raw = JSON.parse(item?.live_info?.raw_data || '{}');
+            const owner = raw?.owner || {};
+            const username = owner?.display_id || owner?.unique_id || '';
+            if (!username || intercepted.has(username)) continue;
+            const linkMic = raw?.link_mic || {};
+            const battleInfo = linkMic?.battle_info || null;
+            const ownerIdStr = String(owner?.id_str || owner?.id || '');
+            let battle = null;
+            if (battleInfo?.battle_id_str) {
+              const leagueMap = battleInfo.league_info_map || {};
+              const armiesMap = battleInfo.armies || {};
+              const scoresArr = linkMic.battle_scores || [];
+              const myScoreEntry = scoresArr.find(s => String(s.user_id) === ownerIdStr || String(s.user_id_str) === ownerIdStr);
+              const myArmy = armiesMap[ownerIdStr] || {};
+              const myLeagueEntry = leagueMap[ownerIdStr]?.league_info || {};
+              battle = {
+                battleId: battleInfo.battle_id_str,
+                league: myLeagueEntry?.display_text?.content || null,
+                leagueIcon: myLeagueEntry?.icon?.url_list?.[0] || null,
+                score: myScoreEntry?.score ?? myArmy?.hostScore ?? null,
+                hostScore: myArmy?.hostScore ?? null,
+                startTime: battleInfo.battle_settings?.start_time_ms || null,
+                duration: battleInfo.battle_settings?.duration || null,
+              };
             }
-            dbg(`[api] intercepted ${items.length} items from ${url.slice(0, 100)}`);
-          }
-        } catch {}
-      }
+            intercepted.set(username, {
+              id: raw?.id_str || raw?.id || '',
+              username,
+              nickname: owner?.nickname || '',
+              title: raw?.title || '',
+              viewers: raw?.user_count || 0,
+              totalViewers: raw?.stats?.total_user || 0,
+              comments: raw?.stats?.comment_count || 0,
+              shares: raw?.stats?.share_count || 0,
+              followers: owner?.follow_info?.follower_count || 0,
+              avatar: owner?.avatar_thumb?.url_list?.[0] || '',
+              cover: raw?.cover?.url_list?.[0] || '',
+              streamSnapshot: raw?.stream_snapshot?.urls?.[0] || raw?.stream_snapshot?.url_list?.[0] || null,
+              liveUrl: `https://www.tiktok.com/@${username}/live`,
+              battle,
+              source: 'intercepted',
+            });
+            added++;
+          } catch {}
+        }
+        if (added > 0) dbg(`[intercept] +${added} rooms (total=${intercepted.size}) from ${url.slice(0, 80)}`);
+      } catch {}
     });
 
     const liveUrl = `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
@@ -290,108 +323,27 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       dbg('[diag]', JSON.stringify(pageDiag));
     }
 
-    async function runFetch(kw, offset = 0) { return page.evaluate(async ({ kw, offset }) => {
-      try {
-        const params = new URLSearchParams({
-          keyword: kw,
-          offset: String(offset),
-          count: '30',
-          aid: '1988',
-          app_language: 'en',
-          app_name: 'tiktok_web',
-        });
-        const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
-        const json = await res.json();
-        const items = json?.data || json?.live_list || json?.item_list || [];
-        window.__ttApiDiag = JSON.stringify({ status: res.status, dataLen: items.length });
-        return items.map(item => {
-          try {
-            const raw = JSON.parse(item?.live_info?.raw_data || '{}');
-            const owner = raw?.owner || {};
-            const username = owner?.display_id || owner?.unique_id || '';
-            if (!username) return null;
-
-            // Battle/PK data
-            const linkMic = raw?.link_mic || {};
-            const battleInfo = linkMic?.battle_info || null;
-            const ownerIdStr = String(owner?.id_str || owner?.id || '');
-            let battle = null;
-            if (battleInfo && battleInfo.battle_id_str) {
-              const leagueMap = battleInfo.league_info_map || {};
-              const armiesMap = battleInfo.armies || {};
-              const scoresArr = linkMic.battle_scores || [];
-              const myScoreEntry = scoresArr.find(s => String(s.user_id) === ownerIdStr || String(s.user_id_str) === ownerIdStr);
-              const myArmy = armiesMap[ownerIdStr] || {};
-              const myLeagueEntry = leagueMap[ownerIdStr]?.league_info || {};
-              battle = {
-                battleId: battleInfo.battle_id_str,
-                league: myLeagueEntry?.display_text?.content || null,
-                leagueIcon: myLeagueEntry?.icon?.url_list?.[0] || null,
-                score: myScoreEntry?.score ?? myArmy?.hostScore ?? null,
-                hostScore: myArmy?.hostScore ?? null,
-                startTime: battleInfo.battle_settings?.start_time_ms || null,
-                duration: battleInfo.battle_settings?.duration || null,
-              };
-            }
-
-            return {
-              id: raw?.id_str || raw?.id || '',
-              username,
-              nickname: owner?.nickname || '',
-              title: raw?.title || '',
-              viewers: raw?.user_count || 0,
-              totalViewers: raw?.stats?.total_user || 0,
-              comments: raw?.stats?.comment_count || 0,
-              shares: raw?.stats?.share_count || 0,
-              followers: owner?.follow_info?.follower_count || 0,
-              avatar: owner?.avatar_thumb?.url_list?.[0] || '',
-              cover: raw?.cover?.url_list?.[0] || '',
-              streamSnapshot: raw?.stream_snapshot?.urls?.[0] || raw?.stream_snapshot?.url_list?.[0] || null,
-              liveUrl: `https://www.tiktok.com/@${username}/live`,
-              battle,
-              source: 'fetch',
-            };
-          } catch { return null; }
-        }).filter(r => r && r.username);
-      } catch (e) {
-        window.__ttApiDiag = 'error: ' + e.message;
-        return [];
-      }
-    }, { kw, offset }); }
-
+    // Scroll the page to trigger TikTok's own paginated API calls (intercepted above)
+    // Wait for initial results then scroll until no new rooms appear or cap is hit
     const MAX_ROOMS = 200;
-    const seen = new Map();
-    let offset = 0;
-    let pageNum = 0;
+    const SCROLL_PAUSE = 2500;
+    const MAX_SCROLLS = 10;
 
-    // First fetch — retry once if 0 results (page may still be initializing)
-    let firstPage = await runFetch(keyword, 0);
-    if (firstPage.length === 0) {
-      dbg('[scrape] 0 results on first try, waiting 2s and retrying');
-      await page.waitForTimeout(2000);
-      firstPage = await runFetch(keyword, 0);
-    }
-    for (const r of firstPage) if (!seen.has(r.username)) seen.set(r.username, r);
-    offset = firstPage.length;
-    pageNum = 1;
-    log(`[scrape] keyword="${keyword}" page 1: ${firstPage.length} rooms`);
-
-    // Paginate until empty page, partial page, or cap
-    while (firstPage.length === 30 && seen.size < MAX_ROOMS) {
-      const page_results = await runFetch(keyword, offset);
-      pageNum++;
-      log(`[scrape] keyword="${keyword}" page ${pageNum}: ${page_results.length} rooms`);
-      if (page_results.length === 0) break;
-      for (const r of page_results) if (!seen.has(r.username)) seen.set(r.username, r);
-      offset += page_results.length;
-      if (page_results.length < 30) break;
+    await page.waitForTimeout(2000); // let first batch load
+    let prevSize = 0;
+    for (let s = 1; s <= MAX_SCROLLS && intercepted.size < MAX_ROOMS; s++) {
+      await page.mouse.wheel(0, 2000);
+      await page.waitForTimeout(SCROLL_PAUSE);
+      if (intercepted.size === prevSize) {
+        dbg(`[scrape] no new rooms after scroll ${s}, stopping`);
+        break;
+      }
+      dbg(`[scrape] scroll ${s}: ${intercepted.size} rooms so far`);
+      prevSize = intercepted.size;
     }
 
-    const fetchedRooms = Array.from(seen.values());
-
-    const diagVal = await page.evaluate(() => window.__ttApiDiag || 'no diag');
-    dbg('[fetch-api] diag:', diagVal);
-    log(`[scrape] keyword="${keyword}" total=${fetchedRooms.length} rooms across ${pageNum} page(s)`);
+    const fetchedRooms = Array.from(intercepted.values());
+    log(`[scrape] keyword="${keyword}" total=${fetchedRooms.length} rooms`);
 
     // TODO: store images in Cloudflare R2 for permanent URLs instead of base64
     // See TODO.md — needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET env vars
@@ -418,9 +370,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       dbg(`[images] embedded ${embedded}/${fetchedRooms.length} snapshots`);
     }
 
-    const domRooms = fetchedRooms.length > 0 ? [] : await scrollAndCollect(page, log, 12);
-    const rooms = fetchedRooms.length > 0 ? fetchedRooms : (apiRooms.length > 0 ? apiRooms : domRooms);
-    dbg(`[scrape] fetchedRooms=${fetchedRooms.length} apiRooms=${apiRooms.length} domRooms=${domRooms.length}`);
+    const rooms = fetchedRooms;
 
     // Save updated guest state
     await context.storageState({ path: STORAGE_STATE_PATH });
