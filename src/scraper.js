@@ -242,36 +242,35 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       }
     });
 
-    const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
-    dbg(`[scrape] navigating to ${searchUrl}`);
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await dismissLoginPopup(page);
-    await page.waitForTimeout(3000);
+    const liveUrl = `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
 
-    let liveTabClicked = false;
-    try {
-      const liveTabLink = page.locator('a[href*="/search/live"]').first();
-      await liveTabLink.click({ timeout: 8000 });
-      liveTabClicked = true;
-      dbg('[scrape] clicked /search/live anchor');
-    } catch {}
-
-    if (!liveTabClicked) {
-      const liveUrl = `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
-      dbg('[scrape] fallback: goto', liveUrl);
+    if (hasGuestState()) {
+      // Fast path: cookies already set, go straight to live search
+      dbg(`[scrape] fast path — navigating directly to live search`);
       await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForTimeout(1500);
+    } else {
+      // Slow path: no session yet — navigate to search, dismiss popup, click live tab
+      const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
+      dbg(`[scrape] slow path — no guest state`);
+      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await dismissLoginPopup(page);
+      await page.waitForTimeout(3000);
+
+      let liveTabClicked = false;
+      try {
+        const liveTabLink = page.locator('a[href*="/search/live"]').first();
+        await liveTabLink.click({ timeout: 8000 });
+        liveTabClicked = true;
+        dbg('[scrape] clicked /search/live anchor');
+      } catch {}
+
+      if (!liveTabClicked) {
+        await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      }
+      await page.waitForTimeout(3000);
     }
 
-    await page.waitForTimeout(4000);
-    try {
-      await page.waitForFunction(
-        () => document.querySelectorAll('a[href]').length > 5 || (document.body?.innerText?.length || 0) > 100,
-        { timeout: 10000 }
-      );
-    } catch {
-      dbg('[scrape] content wait timed out, proceeding anyway');
-    }
-    await page.waitForTimeout(2000);
     dbg('[scrape] current url:', page.url());
 
     if (DEBUG) {
@@ -291,7 +290,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       dbg('[diag]', JSON.stringify(pageDiag));
     }
 
-    const fetchedRooms = await page.evaluate(async (kw) => {
+    async function runFetch(kw) { return page.evaluate(async (kw) => {
       try {
         const params = new URLSearchParams({
           keyword: kw,
@@ -358,7 +357,14 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
         window.__ttApiDiag = 'error: ' + e.message;
         return [];
       }
-    }, keyword);
+    }, kw); }
+
+    let fetchedRooms = await runFetch(keyword);
+    if (fetchedRooms.length === 0) {
+      dbg('[scrape] 0 results, waiting 2s and retrying fetch');
+      await page.waitForTimeout(2000);
+      fetchedRooms = await runFetch(keyword);
+    }
 
     const diagVal = await page.evaluate(() => window.__ttApiDiag || 'no diag');
     dbg('[fetch-api] diag:', diagVal);
