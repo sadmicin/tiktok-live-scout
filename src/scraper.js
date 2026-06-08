@@ -31,7 +31,16 @@ const TIKTOK_USER_AGENT =
   '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 function hasGuestState() {
-  return fs.existsSync(STORAGE_STATE_PATH);
+  if (!fs.existsSync(STORAGE_STATE_PATH)) return false;
+  try {
+    const ageSec = (Date.now() - fs.statSync(STORAGE_STATE_PATH).mtimeMs) / 1000;
+    if (ageSec > 7200) {
+      console.log(`[state] guest state is ${Math.round(ageSec/60)}m old — discarding`);
+      fs.unlinkSync(STORAGE_STATE_PATH);
+      return false;
+    }
+  } catch {}
+  return true;
 }
 
 function liveSearchUrl(keyword) {
@@ -271,10 +280,12 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
 
     page.on('request', (request) => {
       const url = request.url();
-      if (!capturedSearchHeaders && url.includes('tiktok.com') && url.includes('/api/search/live/full/')) {
+      if (!url.includes('tiktok.com') || !url.includes('/api/')) return;
+      // Capture headers from any TikTok search/live API request
+      if (!capturedSearchHeaders && (url.includes('/api/search/') || url.includes('/api/live/'))) {
         capturedSearchHeaders = request.headers();
         capturedSearchUrl = url;
-        dbg(`[intercept] captured search request headers from ${url.slice(0, 100)}`);
+        log(`[intercept] captured API request headers from ${url.slice(0, 120)}`);
       }
     });
 
@@ -283,12 +294,18 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       if (!url.includes('tiktok.com')) return;
       if (!url.includes('/api/')) return;
       try {
-        const json = await response.json();
+        const text = await response.text();
+        let json;
+        try { json = JSON.parse(text); } catch { return; }
         const items = json?.data || json?.live_list || json?.item_list || json?.lives || [];
-        if (!Array.isArray(items) || items.length === 0) return;
-        if (!items.some(i => i?.live_info?.raw_data)) return;
-        const added = parseItemsIntoIntercepted(items, 'intercepted');
-        if (added > 0) log(`[intercept] +${added} rooms (total=${intercepted.size}) from ${url.slice(0, 80)}`);
+        // Log any API response with data so we can diagnose
+        if (Array.isArray(items) && items.length > 0) {
+          const hasRaw = items.some(i => i?.live_info?.raw_data);
+          log(`[intercept] api response: ${items.length} items hasRaw=${hasRaw} url=${url.slice(0, 80)}`);
+          if (!hasRaw) return;
+          const added = parseItemsIntoIntercepted(items, 'intercepted');
+          if (added > 0) log(`[intercept] +${added} rooms (total=${intercepted.size})`);
+        }
       } catch {}
     });
 
