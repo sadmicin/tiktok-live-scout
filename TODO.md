@@ -2,6 +2,15 @@
 
 ## In Progress / Next Up
 
+### Image Storage via Cloudflare R2 ⚠️
+- Image embedding is disabled (`GET_IMAGES=false`) until R2 is set up
+- Code is in place in `src/scraper.js`, gated by `GET_IMAGES` env var
+- Plan: upload snapshot + avatar to R2 per room, store permanent public URL instead of base64
+- Overwrite by roomId each run so storage stays near zero, writes stay within free tier (~$2/month)
+- Required env vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
+- Package needed: `@aws-sdk/client-s3` (R2 is S3-compatible)
+- `/report` endpoint already handles both base64 and URL formats
+
 ### Pagination
 - Currently returns ~25–30 creators per run (one page from `/api/search/live/full/`)
 - Need to loop with `offset` param until results are exhausted or a max is hit

@@ -6,6 +6,7 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 chromium.use(StealthPlugin());
 
 const DEBUG = process.env.DEBUG !== 'FALSE' && process.env.DEBUG !== 'false';
+const GET_IMAGES = process.env.GET_IMAGES === 'true' || process.env.GET_IMAGES === 'TRUE';
 
 function makeLogger() {
   const lines = [];
@@ -373,9 +374,9 @@ export async function scrapeTikTokLive(keyword) {
     dbg('[fetch-api] diag:', diagVal);
     log(`[scrape] keyword="${keyword}" rooms=${fetchedRooms.length}`);
 
-    // Fetch images directly (no proxy) — signed URLs contain auth in query params,
-    // proxy is only needed for TikTok page navigation and the search API call.
-    if (fetchedRooms.length > 0) {
+    // TODO: store images in Cloudflare R2 for permanent URLs instead of base64
+    // See TODO.md — needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET env vars
+    if (GET_IMAGES && fetchedRooms.length > 0) {
       async function fetchImageBase64(url) {
         if (!url) return null;
         try {
