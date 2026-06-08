@@ -218,7 +218,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       const url = response.url();
       if (!url.includes('tiktok.com')) return;
       if (url.includes('/api/')) dbg(`[net] ${response.status()} ${url.slice(0, 120)}`);
-      if (!url.includes('/api/search/live')) return;
+      if (!url.includes('/api/search/') && !(url.includes('live') && url.includes('list'))) return;
       try {
         const json = await response.json();
         const items = json?.data || json?.live_list || json?.item_list || json?.lives || [];
@@ -323,14 +323,80 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       dbg('[diag]', JSON.stringify(pageDiag));
     }
 
-    // Scroll the page to trigger TikTok's own paginated API calls (intercepted above)
-    // Wait for initial results then scroll until no new rooms appear or cap is hit
+    // Manual fetch for page 1 — proven reliable, seeds the map before scrolling
     const MAX_ROOMS = 200;
+    const page1 = await page.evaluate(async (kw) => {
+      try {
+        const params = new URLSearchParams({ keyword: kw, offset: '0', count: '30', aid: '1988', app_language: 'en', app_name: 'tiktok_web' });
+        const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
+        const json = await res.json();
+        return json?.data || json?.live_list || json?.item_list || [];
+      } catch { return []; }
+    }, keyword);
+
+    if (page1.length === 0) {
+      dbg('[scrape] manual fetch returned 0, waiting 2s and retrying');
+      await page.waitForTimeout(2000);
+      // interceptor may have already captured some; fall through to scroll
+    }
+
+    function parseRawItem(item) {
+      try {
+        const raw = JSON.parse(item?.live_info?.raw_data || '{}');
+        const owner = raw?.owner || {};
+        const username = owner?.display_id || owner?.unique_id || '';
+        if (!username) return null;
+        const linkMic = raw?.link_mic || {};
+        const battleInfo = linkMic?.battle_info || null;
+        const ownerIdStr = String(owner?.id_str || owner?.id || '');
+        let battle = null;
+        if (battleInfo?.battle_id_str) {
+          const leagueMap = battleInfo.league_info_map || {};
+          const armiesMap = battleInfo.armies || {};
+          const scoresArr = linkMic.battle_scores || [];
+          const myScoreEntry = scoresArr.find(s => String(s.user_id) === ownerIdStr || String(s.user_id_str) === ownerIdStr);
+          const myArmy = armiesMap[ownerIdStr] || {};
+          const myLeagueEntry = leagueMap[ownerIdStr]?.league_info || {};
+          battle = {
+            battleId: battleInfo.battle_id_str,
+            league: myLeagueEntry?.display_text?.content || null,
+            leagueIcon: myLeagueEntry?.icon?.url_list?.[0] || null,
+            score: myScoreEntry?.score ?? myArmy?.hostScore ?? null,
+            hostScore: myArmy?.hostScore ?? null,
+            startTime: battleInfo.battle_settings?.start_time_ms || null,
+            duration: battleInfo.battle_settings?.duration || null,
+          };
+        }
+        return {
+          id: raw?.id_str || raw?.id || '',
+          username,
+          nickname: owner?.nickname || '',
+          title: raw?.title || '',
+          viewers: raw?.user_count || 0,
+          totalViewers: raw?.stats?.total_user || 0,
+          comments: raw?.stats?.comment_count || 0,
+          shares: raw?.stats?.share_count || 0,
+          followers: owner?.follow_info?.follower_count || 0,
+          avatar: owner?.avatar_thumb?.url_list?.[0] || '',
+          cover: raw?.cover?.url_list?.[0] || '',
+          streamSnapshot: raw?.stream_snapshot?.urls?.[0] || raw?.stream_snapshot?.url_list?.[0] || null,
+          liveUrl: `https://www.tiktok.com/@${username}/live`,
+          battle,
+          source: 'fetch',
+        };
+      } catch { return null; }
+    }
+
+    for (const item of page1) {
+      const r = parseRawItem(item);
+      if (r && !intercepted.has(r.username)) intercepted.set(r.username, r);
+    }
+    dbg(`[scrape] manual fetch: ${page1.length} items, intercepted total=${intercepted.size}`);
+
+    // Scroll to trigger TikTok's own paginated API calls (captured by interceptor above)
     const SCROLL_PAUSE = 2500;
     const MAX_SCROLLS = 10;
-
-    await page.waitForTimeout(2000); // let first batch load
-    let prevSize = 0;
+    let prevSize = intercepted.size;
     for (let s = 1; s <= MAX_SCROLLS && intercepted.size < MAX_ROOMS; s++) {
       await page.mouse.wheel(0, 2000);
       await page.waitForTimeout(SCROLL_PAUSE);
@@ -338,7 +404,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
         dbg(`[scrape] no new rooms after scroll ${s}, stopping`);
         break;
       }
-      dbg(`[scrape] scroll ${s}: ${intercepted.size} rooms so far`);
+      dbg(`[scrape] scroll ${s}: ${intercepted.size} rooms`);
       prevSize = intercepted.size;
     }
 
