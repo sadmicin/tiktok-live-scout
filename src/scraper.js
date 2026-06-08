@@ -1,6 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import { chromium } from 'rebrowser-playwright';
+import { chromium } from 'playwright-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+
+chromium.use(StealthPlugin());
 
 function makeLogger() {
   const lines = [];
@@ -204,11 +207,16 @@ export async function scrapeTikTokLive(keyword) {
 
     const page = await context.newPage();
 
-    // Intercept TikTok's internal API responses for LIVE search data
+    // Intercept TikTok API calls — log all, collect LIVE search results
     const apiRooms = [];
     page.on('response', async (response) => {
       const url = response.url();
-      if (url.includes('/api/search/') || (url.includes('tiktok.com') && url.includes('live') && url.includes('list'))) {
+      if (!url.includes('tiktok.com')) return;
+      const status = response.status();
+      if (url.includes('/api/')) {
+        log(`[net] ${status} ${url.slice(0, 120)}`);
+      }
+      if (url.includes('/api/search/') || (url.includes('live') && url.includes('list'))) {
         try {
           const json = await response.json();
           const items = json?.data || json?.live_list || json?.item_list || json?.lives || [];
