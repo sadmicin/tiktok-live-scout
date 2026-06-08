@@ -308,6 +308,16 @@ page.on('response', async (response) => {
     const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0);
     log(`[scrape] url=${page.url().slice(0,80)} bodyLen=${bodyLen}`);
 
+    // Check for TikTok's X-Bogus/signing globals — they load even on blank pages
+    const signingInfo = await page.evaluate(() => {
+      const keys = Object.keys(window);
+      const relevant = keys.filter(k => /bogus|acrawl|sign|xbogus|byted|msdk|tiktok/i.test(k));
+      const hasByted = typeof window.byted_acrawler !== 'undefined';
+      const bytedKeys = hasByted ? Object.keys(window.byted_acrawler) : [];
+      return { relevant, hasByted, bytedKeys };
+    });
+    log(`[signing] relevant globals: ${signingInfo.relevant.join(',')} hasByted=${signingInfo.hasByted} bytedKeys=${signingInfo.bytedKeys.join(',')}`);
+
     const MAX_ROOMS = 200;
     const MAX_PAGES = 8;
 
