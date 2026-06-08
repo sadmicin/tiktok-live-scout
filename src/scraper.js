@@ -332,7 +332,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       return page.evaluate(async ({ kw, cursor }) => {
         try {
           const params = new URLSearchParams({ keyword: kw, count: '30', aid: '1988', app_language: 'en', app_name: 'tiktok_web' });
-          if (cursor) params.set('cursor', String(cursor));
+          if (cursor) params.set('offset', String(cursor));
           const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
           const json = await res.json();
           const topKeys = Object.keys(json || {}).join(',');
