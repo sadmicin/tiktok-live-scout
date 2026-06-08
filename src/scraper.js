@@ -222,10 +222,9 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       try {
         const json = await response.json();
         const items = json?.data || json?.live_list || json?.item_list || json?.lives || [];
-        // Only process if items look like live search results
         if (!Array.isArray(items) || items.length === 0) return;
-        if (!items[0]?.live_info && !items[0]?.room_info) return;
-        if (!Array.isArray(items) || items.length === 0) return;
+        // Only process responses that contain live room data (has raw_data on any item)
+        if (!items.some(i => i?.live_info?.raw_data)) return;
         let added = 0;
         for (const item of items) {
           try {
@@ -407,6 +406,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
       await page.waitForTimeout(SCROLL_PAUSE);
       const domCards = await page.evaluate(extractLiveCards);
       let newCount = 0;
+      dbg(`[scrape] scroll ${s}: DOM found ${domCards.length} cards total`);
       for (const card of domCards) {
         if (!intercepted.has(card.username)) {
           intercepted.set(card.username, {
