@@ -298,11 +298,11 @@ page.on('response', async (response) => {
     if (hasGuestState()) {
       dbg(`[scrape] fast path`);
       await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000);
     } else {
       dbg(`[scrape] slow path`);
       await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForTimeout(3000);
+      await page.waitForTimeout(5000); // extra time for signing scripts to load
     }
 
     const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0);
@@ -370,16 +370,35 @@ page.on('response', async (response) => {
         const result = await page.evaluate(async ({ fp, off }) => {
           try {
             const params = new URLSearchParams({ ...fp, offset: String(off) });
-            const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
+            let url = `/api/search/live/full/?${params}`;
+
+            // Sign with byted_acrawler if available — unlocks page 2+
+            let signed = false;
+            if (window.byted_acrawler) {
+              try {
+                const fullUrl = location.origin + url;
+                const s = window.byted_acrawler.frontierSign?.(fullUrl)
+                       ?? window.byted_acrawler.encrypt?.({ url: fullUrl })
+                       ?? null;
+                if (s) {
+                  const bogus = s['X-Bogus'] ?? s.xBogus ?? s.bogus ?? null;
+                  const sig   = s['_signature'] ?? s.signature ?? null;
+                  if (bogus) url += `&X-Bogus=${encodeURIComponent(bogus)}`;
+                  if (sig)   url += `&_signature=${encodeURIComponent(sig)}`;
+                  signed = true;
+                }
+              } catch (_) {}
+            }
+
+            const res = await fetch(url, { credentials: 'include' });
             if (!res.ok) return { error: res.status };
             const json = await res.json();
-            return { ok: true, hasMore: json?.has_more, cursor: json?.cursor ?? null, data: json?.data || [], finalUrl: res.url };
+            return { ok: true, hasMore: json?.has_more, cursor: json?.cursor ?? null, data: json?.data || [], signed };
           } catch (e) { return { error: String(e) }; }
         }, { fp: fetchParams, off: offset });
         if (result.error) { log(`[fetch] offset=${offset} error=${result.error}`); break; }
-        if (p === 0) log(`[fetch] page1 finalUrl=${result.finalUrl?.slice(0, 500)}`);
         const added = parseItemsIntoIntercepted(result.data || [], 'fetch');
-        log(`[fetch] offset=${offset}: +${added} new (total=${intercepted.size}) hasMore=${result.hasMore}`);
+        log(`[fetch] offset=${offset}: +${added} new (total=${intercepted.size}) hasMore=${result.hasMore} signed=${result.signed}`);
         if (!result.hasMore) break;
         await page.waitForTimeout(400);
       }
