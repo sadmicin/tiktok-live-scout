@@ -1,18 +1,18 @@
 {
-  "created_at": "2026-06-08T00:09:04.356Z",
-  "commit": "9b97dc9df169dec5ff1c38fa5e7986c23ad658de",
+  "created_at": "2026-06-08T00:17:59.256Z",
+  "commit": "e87a440a1e1e60cd043b2d9b7335d7c6b4e49c40",
   "results": [
     {
       "keyword": "Live",
-      "collected_at": "2026-06-08T00:09:04.356Z",
+      "collected_at": "2026-06-08T00:17:59.256Z",
       "mode": "failed",
       "error": "page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/\nCall log:\n  - navigating to \"https://www.tiktok.com/\", waiting until \"domcontentloaded\"\n",
       "roomCount": 0,
       "rooms": [],
       "runLog": [
-        "2026-06-08T00:09:02.571Z [scrape] start keyword=\"Live\"",
-        "2026-06-08T00:09:02.867Z [scrape] warming up guest session...",
-        "2026-06-08T00:09:04.267Z [scrape] fatal error: page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/\nCall log:\n  - navigating to \"https://www.tiktok.com/\", waiting until \"domcontentloaded\"\n"
+        "2026-06-08T00:17:57.608Z [scrape] start keyword=\"Live\"",
+        "2026-06-08T00:17:57.861Z [scrape] warming up guest session...",
+        "2026-06-08T00:17:59.192Z [scrape] fatal error: page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/\nCall log:\n  - navigating to \"https://www.tiktok.com/\", waiting until \"domcontentloaded\"\n"
       ],
       "screenshotBase64": null
     }
