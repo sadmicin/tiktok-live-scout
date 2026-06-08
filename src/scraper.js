@@ -74,11 +74,10 @@ async function launchBrowser() {
   // the SSL capability refers to target sites, not the proxy connection itself.
   const proxyUrl = proxyServer ? `http://${proxyServer}` : null;
 
-  console.log('[proxy] launching chrome (rebrowser, channel=chrome)…');
+  console.log('[proxy] launching rebrowser chromium (patched binary)…');
   const browser = await chromium.launch({
     headless: false,
     timeout: 60000,
-    channel: 'chrome', // use system google-chrome-stable — real Chrome, better stealth
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
