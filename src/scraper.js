@@ -366,8 +366,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
 
       log(`[scrape] page ${pageNum}: ${items.length} items, has_more=${more}, intercepted=${intercepted.size}${total != null ? ', total='+total : ''}`);
 
-      if (more === false) break;
-      if (items.length < 12) break; // partial page = end of results
+      if (!more) break;
       offset += items.length;
       // Small pause between pages to avoid rate limiting
       await page.waitForTimeout(500);
