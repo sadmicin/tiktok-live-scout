@@ -196,13 +196,7 @@ export async function scrapeTikTokLive(keyword) {
     const context = await newTikTokContext(browser);
 
     if (!hasGuestState()) {
-      log('[scrape] warming up guest session...');
-      const warmup = await context.newPage();
-      await warmup.goto('https://www.tiktok.com/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await warmup.waitForTimeout(5000);
-      await context.storageState({ path: STORAGE_STATE_PATH });
-      log('[scrape] guest session saved');
-      await warmup.close();
+      log('[scrape] no guest state, will build during main navigation');
     }
 
     const page = await context.newPage();
