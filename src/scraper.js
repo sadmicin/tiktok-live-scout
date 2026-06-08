@@ -252,7 +252,19 @@ export async function scrapeTikTokLive(keyword) {
       liveTabClicked = true;
     }
 
+    // Wait for content to render — TikTok is a heavy SPA
     await page.waitForTimeout(4000);
+    try {
+      // Wait for any meaningful content: live cards, user links, or at least a div with text
+      await page.waitForFunction(
+        () => document.querySelectorAll('a[href]').length > 5 || (document.body?.innerText?.length || 0) > 100,
+        { timeout: 10000 }
+      );
+      log('[scrape] content detected, proceeding');
+    } catch {
+      log('[scrape] content wait timed out, proceeding anyway');
+    }
+    await page.waitForTimeout(2000);
     log('[scrape] current url after tab click:', page.url());
 
     // Diagnose what's actually on the page
