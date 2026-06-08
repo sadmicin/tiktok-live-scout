@@ -1,0 +1,67 @@
+{
+  "created_at": "2026-06-08T05:56:57.838Z",
+  "commit": "2bcc0cfd6b47d1be52fb8216bb97dd53b24cc0f0",
+  "durationMs": 20929,
+  "results": [
+    {
+      "keyword": "chill",
+      "collected_at": "2026-06-08T05:56:44.154Z",
+      "durationMs": 6888,
+      "mode": "failed",
+      "error": "Max retries exceeded — tunnel failures",
+      "roomCount": 0,
+      "rooms": [],
+      "runLog": [
+        "2026-06-08T05:56:37.266Z [scrape] start keyword=\"chill\"",
+        "2026-06-08T05:56:37.616Z [scrape] error keyword=\"chill\" duration=0.3s error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search?q=chill&t=1780898197386\nCall log:\n  - navigating to \"https://www.tiktok.com/search?q=chill&t=1780898197386\", waiting until \"domcontentloaded\"\n",
+        "2026-06-08T05:56:37.616Z [scrape] tunnel failure attempt 1/3, retrying...",
+        "2026-06-08T05:56:39.888Z [scrape] error keyword=\"chill\" duration=0.3s error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search?q=chill&t=1780898199651\nCall log:\n  - navigating to \"https://www.tiktok.com/search?q=chill&t=1780898199651\", waiting until \"domcontentloaded\"\n",
+        "2026-06-08T05:56:39.888Z [scrape] tunnel failure attempt 2/3, retrying...",
+        "2026-06-08T05:56:44.154Z [scrape] error keyword=\"chill\" duration=0.3s error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search?q=chill&t=1780898203918\nCall log:\n  - navigating to \"https://www.tiktok.com/search?q=chill&t=1780898203918\", waiting until \"domcontentloaded\"\n",
+        "2026-06-08T05:56:44.154Z [scrape] tunnel failure attempt 3/3, retrying...",
+        "2026-06-08T05:56:44.154Z [scrape] all 3 attempts failed for keyword=\"chill\""
+      ],
+      "screenshotBase64": null
+    },
+    {
+      "keyword": "vibes",
+      "collected_at": "2026-06-08T05:56:50.976Z",
+      "durationMs": 6822,
+      "mode": "failed",
+      "error": "Max retries exceeded — tunnel failures",
+      "roomCount": 0,
+      "rooms": [],
+      "runLog": [
+        "2026-06-08T05:56:44.154Z [scrape] start keyword=\"vibes\"",
+        "2026-06-08T05:56:44.434Z [scrape] error keyword=\"vibes\" duration=0.3s error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search?q=vibes&t=1780898204188\nCall log:\n  - navigating to \"https://www.tiktok.com/search?q=vibes&t=1780898204188\", waiting until \"domcontentloaded\"\n",
+        "2026-06-08T05:56:44.434Z [scrape] tunnel failure attempt 1/3, retrying...",
+        "2026-06-08T05:56:46.709Z [scrape] error keyword=\"vibes\" duration=0.3s error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search?q=vibes&t=1780898206469\nCall log:\n  - navigating to \"https://www.tiktok.com/search?q=vibes&t=1780898206469\", waiting until \"domcontentloaded\"\n",
+        "2026-06-08T05:56:46.709Z [scrape] tunnel failure attempt 2/3, retrying...",
+        "2026-06-08T05:56:50.976Z [scrape] error keyword=\"vibes\" duration=0.3s error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search?q=vibes&t=1780898210741\nCall log:\n  - navigating to \"https://www.tiktok.com/search?q=vibes&t=1780898210741\", waiting until \"domcontentloaded\"\n",
+        "2026-06-08T05:56:50.976Z [scrape] tunnel failure attempt 3/3, retrying...",
+        "2026-06-08T05:56:50.976Z [scrape] all 3 attempts failed for keyword=\"vibes\""
+      ],
+      "screenshotBase64": null
+    },
+    {
+      "keyword": "friends",
+      "collected_at": "2026-06-08T05:56:57.757Z",
+      "durationMs": 6781,
+      "mode": "failed",
+      "error": "Max retries exceeded — tunnel failures",
+      "roomCount": 0,
+      "rooms": [],
+      "runLog": [
+        "2026-06-08T05:56:50.976Z [scrape] start keyword=\"friends\"",
+        "2026-06-08T05:56:51.238Z [scrape] error keyword=\"friends\" duration=0.3s error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search?q=friends&t=1780898211006\nCall log:\n  - navigating to \"https://www.tiktok.com/search?q=friends&t=1780898211006\", waiting until \"domcontentloaded\"\n",
+        "2026-06-08T05:56:51.238Z [scrape] tunnel failure attempt 1/3, retrying...",
+        "2026-06-08T05:56:53.495Z [scrape] error keyword=\"friends\" duration=0.3s error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search?q=friends&t=1780898213270\nCall log:\n  - navigating to \"https://www.tiktok.com/search?q=friends&t=1780898213270\", waiting until \"domcontentloaded\"\n",
+        "2026-06-08T05:56:53.495Z [scrape] tunnel failure attempt 2/3, retrying...",
+        "2026-06-08T05:56:57.756Z [scrape] error keyword=\"friends\" duration=0.3s error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search?q=friends&t=1780898217527\nCall log:\n  - navigating to \"https://www.tiktok.com/search?q=friends&t=1780898217527\", waiting until \"domcontentloaded\"\n",
+        "2026-06-08T05:56:57.757Z [scrape] tunnel failure attempt 3/3, retrying...",
+        "2026-06-08T05:56:57.757Z [scrape] all 3 attempts failed for keyword=\"friends\""
+      ],
+      "screenshotBase64": null
+    }
+  ]
+}
