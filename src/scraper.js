@@ -1,6 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+
+chromium.use(StealthPlugin());
 
 function makeLogger() {
   const lines = [];
@@ -46,7 +49,6 @@ async function launchBrowser() {
   console.log('[proxy] server:', proxyServer || 'NONE — set PROXY_SERVER env var');
   console.log('[proxy] username:', proxyUsername ? proxyUsername.slice(0, 20) + '…' : 'NONE');
 
-  // Connect to proxy over plain HTTP regardless of port
   const proxyUrl = proxyServer ? `http://${proxyServer}` : null;
 
   return chromium.launch({
@@ -86,13 +88,6 @@ async function newTikTokContext(browser) {
     ...(hasGuestState() ? { storageState: STORAGE_STATE_PATH } : {})
   });
 
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    Object.defineProperty(window, 'chrome', { get: () => ({ runtime: {} }) });
-    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-  });
-
   return context;
 }
 
@@ -128,7 +123,6 @@ function extractLiveCards() {
     for (let i = 0; i < 8; i++) {
       card = card.parentElement;
       if (!card) break;
-      // Stop at a reasonably-sized container
       if (card.querySelectorAll('a').length >= 1 && card.innerText && card.innerText.length > 10) break;
     }
     if (!card) card = link;
@@ -136,7 +130,6 @@ function extractLiveCards() {
     const text = (card.innerText || '').trim();
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-    // Viewer count: look for patterns like "1.2K watching", "5K viewers", or just numbers near "watching"
     let viewersRaw = null;
     let viewers = 0;
     for (const line of lines) {
@@ -150,10 +143,8 @@ function extractLiveCards() {
       }
     }
 
-    // Title: first meaningful line that isn't the username or viewer count
     const title = lines.find(l => l !== username && l !== `@${username}` && l !== viewersRaw && l.length > 1 && !/^\d/.test(l)) || '';
 
-    // Avatar image
     const img = card.querySelector('img');
     const avatarSrc = img?.src || img?.currentSrc || null;
 
@@ -187,13 +178,11 @@ async function scrollAndCollect(page, log, scrollRounds = 12) {
     return newCount;
   };
 
-  // Initial harvest after page load
   await harvest(0);
 
   for (let i = 1; i <= scrollRounds; i++) {
     await page.mouse.wheel(0, 1200);
     await page.waitForTimeout(1800);
-    // Extra wait every 4 rounds to let lazy-loaded content appear
     if (i % 4 === 0) await page.waitForTimeout(1500);
     await harvest(i);
   }
@@ -211,7 +200,6 @@ export async function scrapeTikTokLive(keyword) {
   try {
     const context = await newTikTokContext(browser);
 
-    // Warm up guest session if we don't have one
     if (!hasGuestState()) {
       log('[scrape] warming up guest session...');
       const warmup = await context.newPage();
@@ -224,18 +212,15 @@ export async function scrapeTikTokLive(keyword) {
 
     const page = await context.newPage();
 
-    // Step 1: Land on the search page (not /search/live directly — TikTok redirects that)
     const searchUrl = `https://www.tiktok.com/search?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
     log(`[scrape] navigating to search page: ${searchUrl}`);
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await dismissLoginPopup(page);
     await page.waitForTimeout(3000);
 
-    // Step 2: Click the search-results LIVE tab (href contains /search/live, not the nav /live link)
     log('[scrape] clicking search LIVE tab...');
     let liveTabClicked = false;
 
-    // Best: find anchor whose href points to /search/live
     try {
       const liveTabLink = page.locator('a[href*="/search/live"]').first();
       await liveTabLink.click({ timeout: 8000 });
@@ -244,17 +229,14 @@ export async function scrapeTikTokLive(keyword) {
     } catch {}
 
     if (!liveTabClicked) {
-      // Fallback: navigate directly (SPA may handle client-side route correctly)
       const liveUrl = `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
       log('[scrape] fallback: goto', liveUrl);
       await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      liveTabClicked = true;
     }
 
     // Wait for content to render — TikTok is a heavy SPA
     await page.waitForTimeout(4000);
     try {
-      // Wait for any meaningful content: live cards, user links, or at least a div with text
       await page.waitForFunction(
         () => document.querySelectorAll('a[href]').length > 5 || (document.body?.innerText?.length || 0) > 100,
         { timeout: 10000 }
@@ -266,7 +248,6 @@ export async function scrapeTikTokLive(keyword) {
     await page.waitForTimeout(2000);
     log('[scrape] current url after tab click:', page.url());
 
-    // Diagnose what's actually on the page
     const pageDiag = await page.evaluate(() => {
       const allLinks = Array.from(document.querySelectorAll('a[href]'));
       const hrefs = [...new Set(allLinks.map(a => a.href.replace(/\?.*$/, '')))].slice(0, 60);
@@ -291,7 +272,6 @@ export async function scrapeTikTokLive(keyword) {
 
     const rooms = await scrollAndCollect(page, log, 12);
 
-    // Save updated guest state
     await context.storageState({ path: STORAGE_STATE_PATH });
     screenshotBase64 = (await page.screenshot({ fullPage: false, type: 'png' })).toString('base64');
 
