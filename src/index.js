@@ -4,7 +4,9 @@ import net from 'net';
 import { scrapeTikTokLive, debugTikTokPage } from './scraper.js';
 import { commitJsonToGitHub, commitImageToGitHub } from './githubLogger.js';
 
-const keywords = ['Live'];
+const keywords = process.env.KEYWORDS
+  ? process.env.KEYWORDS.split(',').map(k => k.trim()).filter(Boolean)
+  : ['Live'];
 const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || 'unknown';
 const port = process.env.PORT || 3000;
 
@@ -70,7 +72,7 @@ async function runScrape() {
 const app = express();
 
 app.get('/', (_req, res) => {
-  res.json({ status:'ok', commit:commitHash, latestRunAt: latestRun?.created_at || null, isRunning });
+  res.json({ status:'ok', commit:commitHash, latestRunAt: latestRun?.created_at || null, isRunning, keywords });
 });
 
 app.get('/run', async (_req, res) => res.json(await runScrape()));
