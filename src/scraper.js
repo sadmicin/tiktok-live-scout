@@ -46,8 +46,7 @@ async function launchBrowser() {
   console.log('[proxy] server:', proxyServer || 'NONE — set PROXY_SERVER env var');
   console.log('[proxy] username:', proxyUsername ? proxyUsername.slice(0, 20) + '…' : 'NONE');
 
-  // Connect to Bright Data proxy over plain HTTP regardless of port —
-  // the SSL capability refers to target sites, not the proxy connection itself.
+  // Connect to proxy over plain HTTP regardless of port
   const proxyUrl = proxyServer ? `http://${proxyServer}` : null;
 
   return chromium.launch({
@@ -252,7 +251,19 @@ export async function scrapeTikTokLive(keyword) {
       liveTabClicked = true;
     }
 
+    // Wait for content to render — TikTok is a heavy SPA
     await page.waitForTimeout(4000);
+    try {
+      // Wait for any meaningful content: live cards, user links, or at least a div with text
+      await page.waitForFunction(
+        () => document.querySelectorAll('a[href]').length > 5 || (document.body?.innerText?.length || 0) > 100,
+        { timeout: 10000 }
+      );
+      log('[scrape] content detected, proceeding');
+    } catch {
+      log('[scrape] content wait timed out, proceeding anyway');
+    }
+    await page.waitForTimeout(2000);
     log('[scrape] current url after tab click:', page.url());
 
     // Diagnose what's actually on the page
