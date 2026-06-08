@@ -217,11 +217,14 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
     page.on('response', async (response) => {
       const url = response.url();
       if (!url.includes('tiktok.com')) return;
-      if (url.includes('/api/')) dbg(`[net] ${response.status()} ${url.slice(0, 120)}`);
-      if (!url.includes('/api/search/') && !(url.includes('live') && url.includes('list'))) return;
+      // Try any tiktok API response — let content decide if it's live search data
+      if (!url.includes('/api/')) return;
       try {
         const json = await response.json();
         const items = json?.data || json?.live_list || json?.item_list || json?.lives || [];
+        // Only process if items look like live search results
+        if (!Array.isArray(items) || items.length === 0) return;
+        if (!items[0]?.live_info && !items[0]?.room_info) return;
         if (!Array.isArray(items) || items.length === 0) return;
         let added = 0;
         for (const item of items) {
@@ -271,7 +274,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
             added++;
           } catch {}
         }
-        if (added > 0) dbg(`[intercept] +${added} rooms (total=${intercepted.size}) from ${url.slice(0, 80)}`);
+        if (added > 0) log(`[intercept] +${added} rooms (total=${intercepted.size}) from ${url.slice(0, 80)}`);
       } catch {}
     });
 
@@ -393,8 +396,9 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
     }
     dbg(`[scrape] manual fetch: ${page1.length} items, intercepted total=${intercepted.size}`);
 
-    // Scroll DOM to collect additional creators — TikTok lazy-loads more results on scroll
-    // DOM cards have limited fields; we prefer API data where we already have it
+    // Scroll to load more creators. If interceptor captures rich API data from scroll
+    // responses, great. DOM fallback fills any gaps with basic fields.
+    let prevSize = intercepted.size;
     const MAX_SCROLLS = 10;
     const SCROLL_PAUSE = 2000;
     let domTotal = 0;
@@ -424,14 +428,16 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
           newCount++;
         }
       }
-      domTotal += newCount;
-      dbg(`[scrape] scroll ${s}: +${newCount} new dom rooms, total=${intercepted.size}`);
-      if (newCount === 0) { dbg(`[scrape] no new rooms after scroll ${s}, stopping`); break; }
+      const totalNew = intercepted.size - prevSize;
+      dbg(`[scrape] scroll ${s}: +${newCount} dom, total=${intercepted.size}`);
+      if (totalNew === 0) { dbg(`[scrape] no new rooms after scroll ${s}, stopping`); break; }
+      prevSize = intercepted.size;
     }
-    if (domTotal > 0) dbg(`[scrape] dom scroll added ${domTotal} rooms`);
 
     const fetchedRooms = Array.from(intercepted.values());
-    log(`[scrape] keyword="${keyword}" total=${fetchedRooms.length} rooms (${fetchedRooms.filter(r=>r.source==='fetch').length} rich, ${fetchedRooms.filter(r=>r.source==='dom').length} dom)`);
+    const richCount = fetchedRooms.filter(r => r.source !== 'dom').length;
+    const domCount = fetchedRooms.filter(r => r.source === 'dom').length;
+    log(`[scrape] keyword="${keyword}" total=${fetchedRooms.length} rooms (${richCount} rich, ${domCount} dom)`);
 
     // TODO: store images in Cloudflare R2 for permanent URLs instead of base64
     // See TODO.md — needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET env vars
