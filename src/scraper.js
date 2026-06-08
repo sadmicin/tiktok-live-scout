@@ -434,6 +434,10 @@ async function scrapeTikTokLiveOnce(keyword, log, dbg) {
   }
 }
 
+function isTunnelError(error) {
+  return (error || '').toLowerCase().includes('tunnel');
+}
+
 export async function scrapeTikTokLive(keyword, maxRetries = 3) {
   const { log, dbg, lines: runLog } = makeLogger();
   const startTime = Date.now();
@@ -441,8 +445,8 @@ export async function scrapeTikTokLive(keyword, maxRetries = 3) {
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const result = await scrapeTikTokLiveOnce(keyword, log, dbg);
-    if (result.mode !== 'failed' || !result.error?.includes('tunnel')) {
-      return result;
+    if (result.mode !== 'failed' || !isTunnelError(result.error)) {
+      return { ...result, runLog };
     }
     log(`[scrape] tunnel failure attempt ${attempt}/${maxRetries}, retrying...`);
     if (attempt < maxRetries) await new Promise(r => setTimeout(r, 2000 * attempt));

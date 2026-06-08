@@ -45,6 +45,11 @@ async function runScrape() {
       const result = await scrapeTikTokLive(keyword);
       allResults.push(result);
       screenshotBase64 = result.screenshotBase64 || null;
+      // If all retries exhausted on first keyword, proxy is down — abort early
+      if (result.mode === 'failed' && allResults.length === 1 && result.error?.includes('Max retries')) {
+        console.log('[run] proxy appears down, aborting run early');
+        break;
+      }
     }
 
     const totalDurationMs = Date.now() - runStart;
