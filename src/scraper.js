@@ -377,7 +377,15 @@ page.on('response', async (response) => {
           const res = await fetch(`/api/search/live/full/?${params}`, { credentials: 'include' });
           if (!res.ok) return { error: res.status };
           const json = await res.json();
-          return { ok: true, hasMore: json?.has_more, data: json?.data || [] };
+          // Return cursor/search_id for continuity — TikTok uses these to paginate
+          return {
+            ok: true,
+            hasMore: json?.has_more,
+            cursor: json?.cursor ?? null,
+            searchId: json?.extra?.search_id || json?.search_id || null,
+            data: json?.data || [],
+            rawKeys: Object.keys(json || {}),
+          };
         } catch (e) { return { error: String(e) }; }
       }, { fp: fetchParams, off: offset });
 
@@ -386,8 +394,12 @@ page.on('response', async (response) => {
         break;
       }
       const added = parseItemsIntoIntercepted(result.data || [], 'fetch');
-      log(`[fetch] page ${p+1} offset=${offset}: +${added} new (total=${intercepted.size}) hasMore=${result.hasMore}`);
+      log(`[fetch] page ${p+1} offset=${offset}: +${added} new (total=${intercepted.size}) hasMore=${result.hasMore} cursor=${result.cursor} searchId=${result.searchId} keys=${result.rawKeys?.join(',')}`);
       if (!result.hasMore) break;
+
+      // Thread TikTok's session tokens into subsequent requests
+      if (result.cursor !== null) fetchParams.offset = String(result.cursor);
+      if (result.searchId) fetchParams.search_id = result.searchId;
       await page.waitForTimeout(300);
     }
 
