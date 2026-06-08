@@ -1,8 +1,12 @@
 import fs from 'fs';
 import path from 'path';
-import { chromium } from 'playwright-extra';
+import { addExtra } from 'playwright-extra';
+import rebrowserPlaywright from 'rebrowser-playwright';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
+// Wrap rebrowser-playwright's chromium (patched against CDP/automation leaks)
+// with playwright-extra so we keep the stealth plugin on top.
+const chromium = addExtra(rebrowserPlaywright.chromium);
 chromium.use(StealthPlugin());
 
 const DEBUG = process.env.DEBUG !== 'FALSE' && process.env.DEBUG !== 'false';
