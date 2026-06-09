@@ -379,9 +379,13 @@ page.on('response', async (response) => {
         }
         if (intercepted.size > prevSize) log(`[scrape] scroll ${s+1}: +${intercepted.size - prevSize} new (total=${intercepted.size})`);
       }
-    } else {
-      // Page blank — use page.evaluate fetch with browser cookie jar as fallback
-      log('[scrape] page blank — using evaluate fetch fallback');
+    }
+
+    // Fetch fallback: runs whenever scroll/intercept collected nothing (blank
+    // page, or a rendered page that served the Users tab instead of Live). The
+    // signed evaluate-fetch works regardless of what the DOM rendered.
+    if (intercepted.size === 0) {
+      log('[scrape] no rooms from scroll/intercept — using evaluate fetch fallback');
       // Extract msToken from cookies — TikTok includes it as a URL param in its own requests
       const msToken = await page.evaluate(() =>
         document.cookie.match(/msToken=([^;]+)/)?.[1] || ''
