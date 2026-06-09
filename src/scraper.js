@@ -118,13 +118,19 @@ async function newTikTokContext(browser) {
 }
 
 async function dismissLoginPopup(page) {
-  await page.waitForTimeout(2000);
-  try {
-    await page.locator('[aria-label="Close"]').click({ timeout: 4000 });
-    console.log('Dismissed login popup');
-    await page.waitForTimeout(1000);
-  } catch {
-    // no popup
+  const selectors = [
+    '[aria-label="Close"]',
+    '[data-e2e="modal-close-inner-button"]',
+    '[data-e2e="close-login-modal"]',
+    'button[class*="close" i]',
+  ];
+  for (const sel of selectors) {
+    try {
+      await page.locator(sel).click({ timeout: 2000 });
+      console.log(`[popup] dismissed login modal via ${sel}`);
+      await page.waitForTimeout(800);
+      return;
+    } catch { /* not found, try next */ }
   }
 }
 
@@ -311,6 +317,7 @@ page.on('response', async (response) => {
       await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForTimeout(5000); // extra time for signing scripts to load
     }
+    await dismissLoginPopup(page);
 
     const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0);
     log(`[scrape] url=${page.url().slice(0,80)} bodyLen=${bodyLen}`);
