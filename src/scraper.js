@@ -29,19 +29,44 @@ function liveSearchUrl(keyword) {
   return `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
 }
 
-async function launchBrowser() {
+// Build a Playwright proxy config. Two providers, selected by env:
+//
+//  Apify Proxy (preferred — set APIFY_PROXY_PASSWORD):
+//    server   = http://proxy.apify.com:8000
+//    username = groups-RESIDENTIAL,country-US,session-<id>   ← session pins the IP
+//    password = <Apify proxy password from console>
+//
+//  IPRoyal / generic (fallback — set PROXY_SERVER/USERNAME/PASSWORD):
+//    used as-is. Rotating by default on our current plan.
+//
+// `sessionId` makes the exit IP sticky for the lifetime of one browser: every
+// request in a run exits from the same residential IP (what TikTok wants to
+// see), and a relaunch passes a new id to deliberately rotate.
+function buildProxy(sessionId) {
+  const apifyPassword = process.env.APIFY_PROXY_PASSWORD;
+  if (apifyPassword) {
+    const server = process.env.APIFY_PROXY_SERVER || 'proxy.apify.com:8000';
+    const country = process.env.APIFY_PROXY_COUNTRY || 'US';
+    const username = `groups-RESIDENTIAL,country-${country},session-${sessionId}`;
+    return { server: `http://${server}`, username, password: apifyPassword, label: `apify(${country})` };
+  }
   const proxyServer = process.env.PROXY_SERVER;
-  const proxyUsername = process.env.PROXY_USERNAME;
-  const proxyPassword = process.env.PROXY_PASSWORD;
-  console.log('[proxy] server:', proxyServer || 'NONE');
-  console.log('[proxy] username:', proxyUsername ? proxyUsername.slice(0, 20) + '…' : 'NONE');
-
-  const proxy = proxyServer ? {
+  if (!proxyServer) return undefined;
+  return {
     server: `http://${proxyServer}`,
-    username: proxyUsername,
-    password: proxyPassword,
-  } : undefined;
+    username: process.env.PROXY_USERNAME,
+    password: process.env.PROXY_PASSWORD,
+    label: 'generic',
+  };
+}
 
+async function launchBrowser(sessionId) {
+  const built = buildProxy(sessionId);
+  const proxy = built && { server: built.server, username: built.username, password: built.password };
+  console.log('[proxy] provider:', built?.label || 'NONE');
+  console.log('[proxy] server:', built?.server || 'NONE');
+  console.log('[proxy] username:', built?.username ? built.username.slice(0, 32) + '…' : 'NONE');
+  console.log('[proxy] session:', sessionId || 'none');
   // Headful Chromium under Xvfb — matches easyapi's working stack. Headful is
   // important: TikTok serves the full live grid to a real-looking browser and
   // the gated/blank variant to obvious headless automation.
@@ -83,6 +108,24 @@ async function newTikTokContext(browser) {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
   });
   return context;
+}
+
+// Visit the homepage first so the context picks up ttwid / msToken / etc.
+// Landing cold on a /search/live URL looks like a bot; arriving with cookies
+// from a homepage visit looks like a returning visitor and is less likely to
+// trigger the login gate.
+async function warmSession(context, log) {
+  const page = await context.newPage();
+  try {
+    await page.goto('https://www.tiktok.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForTimeout(4000);
+    const cookies = await context.cookies('https://www.tiktok.com');
+    log(`[warm] homepage loaded, cookies: ${cookies.map(c => c.name).join(',').slice(0, 120)}`);
+  } catch (e) {
+    log(`[warm] homepage warm-up failed (continuing): ${e?.message?.split('\n')[0]}`);
+  } finally {
+    try { await page.close(); } catch { /* ignore */ }
+  }
 }
 
 // The login modal ("Log in to search for popular content") appears LATE —
@@ -326,17 +369,48 @@ async function embedImages(rooms, dbg) {
   dbg(`[images] embedded ${rooms.filter(r => r.streamSnapshotBase64).length}/${rooms.length} snapshots`);
 }
 
+function newSessionId() {
+  // Apify session ids: alphanumeric, max 50 chars. Keep it short + unique.
+  return 'r' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+function isTunnelError(msg) {
+  const e = (msg || '').toLowerCase();
+  return e.includes('err_tunnel_connection_failed')
+    || e.includes('err_proxy_connection_failed')
+    || e.includes('err_empty_response')
+    || e.includes('err_connection_closed')
+    || e.includes('err_connection_reset');
+}
+
 export async function scrapeAllKeywords(keywords) {
   const { log, dbg, lines } = makeLogger();
+  let sessionId = newSessionId();
   console.log('[run] launching browser…');
-  const browser = await launchBrowser();
-  const context = await newTikTokContext(browser);
+  let browser = await launchBrowser(sessionId);
+  let context = await newTikTokContext(browser);
+  await warmSession(context, log);
   console.log(`[run] scraping ${keywords.length} keyword(s)`);
 
   const results = [];
   try {
     for (const keyword of keywords) {
-      const result = await scrapeKeywordOnce(keyword, context, log, dbg);
+      let result;
+      // Up to 2 attempts per keyword. A tunnel/proxy failure means the exit IP
+      // died — relaunch with a NEW session id to get a fresh residential IP.
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        result = await scrapeKeywordOnce(keyword, context, log, dbg);
+        if (result.mode !== 'failed' || !isTunnelError(result.error)) break;
+        if (attempt < 2) {
+          sessionId = newSessionId();
+          log(`[run] tunnel failure on "${keyword}" — relaunching with new session ${sessionId}`);
+          try { await browser.close(); } catch { /* ignore */ }
+          await new Promise(r => setTimeout(r, 2000));
+          browser = await launchBrowser(sessionId);
+          context = await newTikTokContext(browser);
+          await warmSession(context, log);
+        }
+      }
       results.push({ ...result, runLog: lines.slice() });
     }
   } finally {
@@ -347,7 +421,7 @@ export async function scrapeAllKeywords(keywords) {
 
 export async function debugTikTokPage(keyword = 'Live') {
   const { log, dbg } = makeLogger();
-  const browser = await launchBrowser();
+  const browser = await launchBrowser(newSessionId());
   const context = await newTikTokContext(browser);
   try {
     const result = await scrapeKeywordOnce(keyword, context, log, dbg);
