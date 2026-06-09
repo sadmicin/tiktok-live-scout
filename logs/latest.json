@@ -1,54 +1,54 @@
 {
-  "created_at": "2026-06-09T21:21:34.997Z",
+  "created_at": "2026-06-09T21:24:24.926Z",
   "commit": "0a0fcd0a5a32687eeec05c7bcff821a503352285",
-  "durationMs": 1150,
+  "durationMs": 1154,
   "results": [
     {
       "keyword": "chill",
-      "collected_at": "2026-06-09T21:21:34.327Z",
-      "durationMs": 293,
+      "collected_at": "2026-06-09T21:24:24.277Z",
+      "durationMs": 307,
       "mode": "failed",
-      "error": "page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=chill&t=1781040094076\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1781040094076\", waiting until \"domcontentloaded\"\n",
+      "error": "page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=chill&t=1781040264020\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1781040264020\", waiting until \"domcontentloaded\"\n",
       "roomCount": 0,
       "rooms": [],
       "screenshotBase64": null,
       "runLog": [
-        "2026-06-09T21:21:34.076Z [scrape] keyword=\"chill\" goto https://www.tiktok.com/search/live?q=chill&t=1781040094076",
-        "2026-06-09T21:21:34.327Z [scrape] error keyword=\"chill\" error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=chill&t=1781040094076\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1781040094076\", waiting until \"domcontentloaded\"\n"
+        "2026-06-09T21:24:24.021Z [scrape] keyword=\"chill\" goto https://www.tiktok.com/search/live?q=chill&t=1781040264020",
+        "2026-06-09T21:24:24.277Z [scrape] error keyword=\"chill\" error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=chill&t=1781040264020\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1781040264020\", waiting until \"domcontentloaded\"\n"
       ]
     },
     {
       "keyword": "vibes",
-      "collected_at": "2026-06-09T21:21:34.607Z",
-      "durationMs": 275,
+      "collected_at": "2026-06-09T21:24:24.566Z",
+      "durationMs": 286,
       "mode": "failed",
-      "error": "page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=vibes&t=1781040094359\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1781040094359\", waiting until \"domcontentloaded\"\n",
+      "error": "page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=vibes&t=1781040264319\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1781040264319\", waiting until \"domcontentloaded\"\n",
       "roomCount": 0,
       "rooms": [],
       "screenshotBase64": null,
       "runLog": [
-        "2026-06-09T21:21:34.076Z [scrape] keyword=\"chill\" goto https://www.tiktok.com/search/live?q=chill&t=1781040094076",
-        "2026-06-09T21:21:34.327Z [scrape] error keyword=\"chill\" error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=chill&t=1781040094076\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1781040094076\", waiting until \"domcontentloaded\"\n",
-        "2026-06-09T21:21:34.359Z [scrape] keyword=\"vibes\" goto https://www.tiktok.com/search/live?q=vibes&t=1781040094359",
-        "2026-06-09T21:21:34.607Z [scrape] error keyword=\"vibes\" error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=vibes&t=1781040094359\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1781040094359\", waiting until \"domcontentloaded\"\n"
+        "2026-06-09T21:24:24.021Z [scrape] keyword=\"chill\" goto https://www.tiktok.com/search/live?q=chill&t=1781040264020",
+        "2026-06-09T21:24:24.277Z [scrape] error keyword=\"chill\" error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=chill&t=1781040264020\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1781040264020\", waiting until \"domcontentloaded\"\n",
+        "2026-06-09T21:24:24.319Z [scrape] keyword=\"vibes\" goto https://www.tiktok.com/search/live?q=vibes&t=1781040264319",
+        "2026-06-09T21:24:24.566Z [scrape] error keyword=\"vibes\" error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=vibes&t=1781040264319\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1781040264319\", waiting until \"domcontentloaded\"\n"
       ]
     },
     {
       "keyword": "friends",
-      "collected_at": "2026-06-09T21:21:34.942Z",
-      "durationMs": 330,
+      "collected_at": "2026-06-09T21:24:24.850Z",
+      "durationMs": 274,
       "mode": "failed",
-      "error": "page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=friends&t=1781040094646\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1781040094646\", waiting until \"domcontentloaded\"\n",
+      "error": "page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=friends&t=1781040264607\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1781040264607\", waiting until \"domcontentloaded\"\n",
       "roomCount": 0,
       "rooms": [],
       "screenshotBase64": null,
       "runLog": [
-        "2026-06-09T21:21:34.076Z [scrape] keyword=\"chill\" goto https://www.tiktok.com/search/live?q=chill&t=1781040094076",
-        "2026-06-09T21:21:34.327Z [scrape] error keyword=\"chill\" error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=chill&t=1781040094076\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1781040094076\", waiting until \"domcontentloaded\"\n",
-        "2026-06-09T21:21:34.359Z [scrape] keyword=\"vibes\" goto https://www.tiktok.com/search/live?q=vibes&t=1781040094359",
-        "2026-06-09T21:21:34.607Z [scrape] error keyword=\"vibes\" error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=vibes&t=1781040094359\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1781040094359\", waiting until \"domcontentloaded\"\n",
-        "2026-06-09T21:21:34.646Z [scrape] keyword=\"friends\" goto https://www.tiktok.com/search/live?q=friends&t=1781040094646",
-        "2026-06-09T21:21:34.942Z [scrape] error keyword=\"friends\" error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=friends&t=1781040094646\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1781040094646\", waiting until \"domcontentloaded\"\n"
+        "2026-06-09T21:24:24.021Z [scrape] keyword=\"chill\" goto https://www.tiktok.com/search/live?q=chill&t=1781040264020",
+        "2026-06-09T21:24:24.277Z [scrape] error keyword=\"chill\" error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=chill&t=1781040264020\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1781040264020\", waiting until \"domcontentloaded\"\n",
+        "2026-06-09T21:24:24.319Z [scrape] keyword=\"vibes\" goto https://www.tiktok.com/search/live?q=vibes&t=1781040264319",
+        "2026-06-09T21:24:24.566Z [scrape] error keyword=\"vibes\" error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=vibes&t=1781040264319\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1781040264319\", waiting until \"domcontentloaded\"\n",
+        "2026-06-09T21:24:24.607Z [scrape] keyword=\"friends\" goto https://www.tiktok.com/search/live?q=friends&t=1781040264607",
+        "2026-06-09T21:24:24.850Z [scrape] error keyword=\"friends\" error=page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://www.tiktok.com/search/live?q=friends&t=1781040264607\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1781040264607\", waiting until \"domcontentloaded\"\n"
       ]
     }
   ]
