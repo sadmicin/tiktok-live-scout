@@ -1,0 +1,52 @@
+{
+  "created_at": "2026-06-09T02:43:08.520Z",
+  "commit": "c1b8cffd72af13a4a7a3920e55754dead0a6d486",
+  "durationMs": 4122,
+  "results": [
+    {
+      "keyword": "chill",
+      "collected_at": "2026-06-09T02:43:07.306Z",
+      "durationMs": 864,
+      "mode": "failed",
+      "error": "page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1780972986963\", waiting until \"domcontentloaded\"\n",
+      "roomCount": 0,
+      "rooms": [],
+      "screenshotBase64": null,
+      "runLog": [
+        "2026-06-09T02:43:06.441Z [scrape] start keyword=\"chill\"",
+        "2026-06-09T02:43:06.964Z [scrape] slow path",
+        "2026-06-09T02:43:07.306Z [scrape] error keyword=\"chill\" duration=0.9s error=page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1780972986963\", waiting until \"domcontentloaded\"\n stack=page.goto: <unknown error> | Call log: |   - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1780972986963\", waiting until \"domcontentloaded\""
+      ]
+    },
+    {
+      "keyword": "vibes",
+      "collected_at": "2026-06-09T02:43:07.720Z",
+      "durationMs": 413,
+      "mode": "failed",
+      "error": "page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1780972987492\", waiting until \"domcontentloaded\"\n",
+      "roomCount": 0,
+      "rooms": [],
+      "screenshotBase64": null,
+      "runLog": [
+        "2026-06-09T02:43:07.307Z [scrape] start keyword=\"vibes\"",
+        "2026-06-09T02:43:07.492Z [scrape] slow path",
+        "2026-06-09T02:43:07.720Z [scrape] error keyword=\"vibes\" duration=0.4s error=page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1780972987492\", waiting until \"domcontentloaded\"\n stack=page.goto: <unknown error> | Call log: |   - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1780972987492\", waiting until \"domcontentloaded\""
+      ]
+    },
+    {
+      "keyword": "friends",
+      "collected_at": "2026-06-09T02:43:08.125Z",
+      "durationMs": 405,
+      "mode": "failed",
+      "error": "page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1780972987891\", waiting until \"domcontentloaded\"\n",
+      "roomCount": 0,
+      "rooms": [],
+      "screenshotBase64": null,
+      "runLog": [
+        "2026-06-09T02:43:07.720Z [scrape] start keyword=\"friends\"",
+        "2026-06-09T02:43:07.891Z [scrape] slow path",
+        "2026-06-09T02:43:08.125Z [scrape] error keyword=\"friends\" duration=0.4s error=page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1780972987891\", waiting until \"domcontentloaded\"\n stack=page.goto: <unknown error> | Call log: |   - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1780972987891\", waiting until \"domcontentloaded\""
+      ]
+    }
+  ]
+}
