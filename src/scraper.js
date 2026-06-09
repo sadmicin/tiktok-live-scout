@@ -324,6 +324,14 @@ page.on('response', async (response) => {
     }
     await dismissLoginPopup(page);
 
+    // After popup dismiss TikTok sometimes redirects to /search/user — re-navigate
+    // to the live URL if we ended up somewhere else.
+    if (!page.url().includes('/search/live')) {
+      log(`[scrape] redirected to ${page.url().slice(0,80)}, re-navigating to live search`);
+      await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForTimeout(3000);
+    }
+
     const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0);
     log(`[scrape] url=${page.url().slice(0,80)} bodyLen=${bodyLen}`);
 
