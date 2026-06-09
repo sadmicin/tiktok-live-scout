@@ -389,58 +389,60 @@ page.on('response', async (response) => {
 
       // webcast.tiktok.com/webcast/hashtag/anchor/ is TikTok's mobile-app live
       // discovery endpoint. Unlike /api/search/live/full/ it doesn't enforce a
-      // one-page guest cap and has different signing requirements.
-      let webcassItems = [];
+      // one-page guest cap. We use context.request (Playwright's Node-layer HTTP
+      // client) rather than page.evaluate(fetch(...)) because TikTok's
+      // tiktok_privacy_protection_framework wraps window.fetch and blocks
+      // cross-origin calls to webcast.tiktok.com from within the page.
       try {
-        const webcams = await page.evaluate(async (kw) => {
-          const rooms = [];
-          let cursor = '0';
-          for (let p = 0; p < 6; p++) {
-            const params = new URLSearchParams({
-              hashtag_name: kw,
-              offset: cursor,
-              count: '30',
-              type: '0',
-              aid: '1988',
-              device_platform: 'web_pc',
-              app_name: 'tiktok_web',
-              channel: 'tiktok_web',
-              cookie_enabled: 'true',
-              screen_width: '1920',
-              screen_height: '1080',
-              browser_language: 'en-US',
-              browser_platform: 'Win32',
-              browser_name: 'Mozilla',
-              region: 'US',
-              tz_name: 'America/New_York',
-            });
-            let url = `https://webcast.tiktok.com/webcast/hashtag/anchor/?${params}`;
-            // Sign if available
-            if (window.byted_acrawler?.frontierSign) {
-              try {
-                const s = window.byted_acrawler.frontierSign(url);
-                const bogus = s?.['X-Bogus'] ?? s?.xBogus ?? null;
-                const sig   = s?.['_signature'] ?? s?.signature ?? null;
-                if (bogus) url += `&X-Bogus=${encodeURIComponent(bogus)}`;
-                if (sig)   url += `&_signature=${encodeURIComponent(sig)}`;
-              } catch { /* unsigned is fine */ }
-            }
-            const res = await fetch(url, { credentials: 'include', headers: { Referer: location.href } });
-            if (!res.ok) break;
-            const json = await res.json();
-            if (json?.status_code !== 0 && json?.statusCode !== 0) break;
-            const data = json?.data || json;
-            const list = data?.anchor_list || data?.room_list || data?.live_room_list || data?.rooms || [];
-            if (!Array.isArray(list) || list.length === 0) break;
-            rooms.push(...list);
-            const hasMore = data?.has_more ?? data?.hasMore ?? 0;
-            if (!hasMore) break;
-            const nextCursor = data?.cursor ?? data?.offset ?? null;
-            if (nextCursor == null || String(nextCursor) === cursor) break;
-            cursor = String(nextCursor);
-          }
-          return rooms;
-        }, keyword);
+        const cookieList = await context.cookies('https://webcast.tiktok.com');
+        const cookieHeader = cookieList.map(c => `${c.name}=${c.value}`).join('; ');
+        const webcams = [];
+        let cursor = '0';
+        for (let p = 0; p < 6; p++) {
+          const params = new URLSearchParams({
+            hashtag_name: keyword,
+            offset: cursor,
+            count: '30',
+            type: '0',
+            aid: '1988',
+            device_platform: 'web_pc',
+            app_name: 'tiktok_web',
+            channel: 'tiktok_web',
+            cookie_enabled: 'true',
+            screen_width: '1920',
+            screen_height: '1080',
+            browser_language: 'en-US',
+            browser_platform: 'Win32',
+            browser_name: 'Mozilla',
+            region: 'US',
+            tz_name: 'America/New_York',
+          });
+          const url = `https://webcast.tiktok.com/webcast/hashtag/anchor/?${params}`;
+          log(`[webcast] page=${p} cursor=${cursor} url=${url.slice(0, 120)}`);
+          const resp = await context.request.fetch(url, {
+            headers: {
+              'Cookie': cookieHeader,
+              'Referer': 'https://www.tiktok.com/',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Accept': 'application/json, text/plain, */*',
+            },
+          });
+          log(`[webcast] page=${p} status=${resp.status()}`);
+          if (!resp.ok()) break;
+          const json = await resp.json();
+          log(`[webcast] page=${p} status_code=${json?.status_code} keys=${Object.keys(json?.data || json || {}).join(',').slice(0, 80)}`);
+          if (json?.status_code !== 0 && json?.statusCode !== 0) break;
+          const data = json?.data || json;
+          const list = data?.anchor_list || data?.room_list || data?.live_room_list || data?.rooms || [];
+          log(`[webcast] page=${p} list.length=${list.length}`);
+          if (!Array.isArray(list) || list.length === 0) break;
+          webcams.push(...list);
+          const hasMore = data?.has_more ?? data?.hasMore ?? 0;
+          if (!hasMore) break;
+          const nextCursor = data?.cursor ?? data?.offset ?? null;
+          if (nextCursor == null || String(nextCursor) === cursor) break;
+          cursor = String(nextCursor);
+        }
 
         // Parse webcast rooms — different schema from web search API
         for (const room of (webcams || [])) {

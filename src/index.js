@@ -4,6 +4,18 @@ import net from 'net';
 import { scrapeAllKeywords, debugTikTokPage } from './scraper.js';
 import { commitJsonToGitHub, commitImageToGitHub } from './githubLogger.js';
 
+// Playwright's Firefox CDP layer crashes when a page error has no `.location`
+// (coreBundle.js:49624 — `url: pageError.location.url`). This is a Playwright
+// bug we can't fix; swallow it so the process keeps running.
+process.on('uncaughtException', (err) => {
+  if (err?.message?.includes("Cannot read properties of undefined (reading 'url')")) {
+    console.warn('[uncaught] swallowed playwright/firefox location bug:', err.message);
+    return;
+  }
+  console.error('[uncaught] fatal:', err?.stack || err);
+  process.exit(1);
+});
+
 const keywords = fs.existsSync('keywords.txt')
   ? fs.readFileSync('keywords.txt', 'utf8').split('\n').map(k => k.trim()).filter(Boolean)
   : ['Live'];
