@@ -85,21 +85,34 @@ async function newTikTokContext(browser) {
   return context;
 }
 
+// The login modal ("Log in to search for popular content") appears LATE —
+// it pops when the search content loads, not on page load. A one-shot dismiss
+// right after goto runs before the modal exists and the grid stays blocked.
+// So: dismiss whenever it's visible, and call this repeatedly during the run.
 async function dismissLoginPopup(page, dbg) {
-  // Escape closes the login modal in place; clicking the generic Close button
+  const modal = page.locator('#loginContainer, [data-e2e="login-modal"]').first();
+  try {
+    if (!(await modal.isVisible({ timeout: 500 }))) return false;
+  } catch { return false; }
+  // Escape closes the modal in place; clicking the generic Close button
   // can redirect to /search/user, so prefer Escape.
   try {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(600);
+    if (!(await modal.isVisible({ timeout: 300 }).catch(() => false))) {
+      dbg('[popup] dismissed via Escape');
+      return true;
+    }
   } catch { /* ignore */ }
-  for (const sel of ['[data-e2e="modal-close-inner-button"]', '[data-e2e="close-login-modal"]']) {
+  for (const sel of ['[data-e2e="modal-close-inner-button"]', '[data-e2e="close-login-modal"]', '#loginContainer [aria-label="Close"]']) {
     try {
       await page.locator(sel).click({ timeout: 1200 });
       dbg(`[popup] dismissed via ${sel}`);
       await page.waitForTimeout(500);
-      return;
+      return true;
     } catch { /* not present */ }
   }
+  return false;
 }
 
 // Parse the raw room objects from /api/search/live/full/ responses, including
@@ -196,8 +209,12 @@ async function scrapeKeywordOnce(keyword, context, log, dbg) {
     }
 
     // Give the initial grid time to render + fire its first API pages
-    // (easyapi waits ~12s after load before scrolling).
-    await page.waitForTimeout(9000);
+    // (easyapi waits ~12s after load before scrolling). The login modal pops
+    // somewhere in this window, so keep checking for it rather than sleeping.
+    for (let w = 0; w < 4; w++) {
+      await page.waitForTimeout(3000);
+      if (await dismissLoginPopup(page, dbg)) log('[popup] login modal dismissed');
+    }
     const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0);
     dbg(`[scrape] after load: bodyLen=${bodyLen} rooms=${intercepted.size}`);
 
@@ -209,6 +226,8 @@ async function scrapeKeywordOnce(keyword, context, log, dbg) {
       const prev = intercepted.size;
       await page.mouse.wheel(0, 2000);
       await page.waitForTimeout(3000);
+      // The modal can reappear mid-scroll and freeze the grid.
+      if (await dismissLoginPopup(page, dbg)) log('[popup] login modal dismissed mid-scroll');
       if (intercepted.size === prev) {
         stale++;
         // Allow a couple of empty scrolls before declaring the end.
