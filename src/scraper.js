@@ -385,7 +385,96 @@ page.on('response', async (response) => {
     // page, or a rendered page that served the Users tab instead of Live). The
     // signed evaluate-fetch works regardless of what the DOM rendered.
     if (intercepted.size === 0) {
-      log('[scrape] no rooms from scroll/intercept — using evaluate fetch fallback');
+      log('[scrape] no rooms from scroll/intercept — trying webcast hashtag API first');
+
+      // webcast.tiktok.com/webcast/hashtag/anchor/ is TikTok's mobile-app live
+      // discovery endpoint. Unlike /api/search/live/full/ it doesn't enforce a
+      // one-page guest cap and has different signing requirements.
+      let webcassItems = [];
+      try {
+        const webcams = await page.evaluate(async (kw) => {
+          const rooms = [];
+          let cursor = '0';
+          for (let p = 0; p < 6; p++) {
+            const params = new URLSearchParams({
+              hashtag_name: kw,
+              offset: cursor,
+              count: '30',
+              type: '0',
+              aid: '1988',
+              device_platform: 'web_pc',
+              app_name: 'tiktok_web',
+              channel: 'tiktok_web',
+              cookie_enabled: 'true',
+              screen_width: '1920',
+              screen_height: '1080',
+              browser_language: 'en-US',
+              browser_platform: 'Win32',
+              browser_name: 'Mozilla',
+              region: 'US',
+              tz_name: 'America/New_York',
+            });
+            let url = `https://webcast.tiktok.com/webcast/hashtag/anchor/?${params}`;
+            // Sign if available
+            if (window.byted_acrawler?.frontierSign) {
+              try {
+                const s = window.byted_acrawler.frontierSign(url);
+                const bogus = s?.['X-Bogus'] ?? s?.xBogus ?? null;
+                const sig   = s?.['_signature'] ?? s?.signature ?? null;
+                if (bogus) url += `&X-Bogus=${encodeURIComponent(bogus)}`;
+                if (sig)   url += `&_signature=${encodeURIComponent(sig)}`;
+              } catch { /* unsigned is fine */ }
+            }
+            const res = await fetch(url, { credentials: 'include', headers: { Referer: location.href } });
+            if (!res.ok) break;
+            const json = await res.json();
+            if (json?.status_code !== 0 && json?.statusCode !== 0) break;
+            const data = json?.data || json;
+            const list = data?.anchor_list || data?.room_list || data?.live_room_list || data?.rooms || [];
+            if (!Array.isArray(list) || list.length === 0) break;
+            rooms.push(...list);
+            const hasMore = data?.has_more ?? data?.hasMore ?? 0;
+            if (!hasMore) break;
+            const nextCursor = data?.cursor ?? data?.offset ?? null;
+            if (nextCursor == null || String(nextCursor) === cursor) break;
+            cursor = String(nextCursor);
+          }
+          return rooms;
+        }, keyword);
+
+        // Parse webcast rooms — different schema from web search API
+        for (const room of (webcams || [])) {
+          try {
+            const owner = room?.user || room?.anchor || room?.owner || {};
+            const username = owner?.uniqueId || owner?.unique_id || owner?.display_id || owner?.loginName || '';
+            if (!username || intercepted.has(username)) continue;
+            const rinfo = room?.room_info || room?.roomInfo || room || {};
+            intercepted.set(username, {
+              id: rinfo?.roomId || rinfo?.room_id || room?.room_id || '',
+              username,
+              nickname: owner?.nickname || '',
+              title: rinfo?.title || room?.title || '',
+              viewers: rinfo?.userCount || rinfo?.user_count || room?.user_count || 0,
+              totalViewers: rinfo?.stats?.totalUser || 0,
+              comments: 0,
+              shares: 0,
+              followers: owner?.followerCount || owner?.follow_info?.follower_count || 0,
+              avatar: owner?.avatarThumb?.url_list?.[0] || owner?.avatar_thumb?.url_list?.[0] || '',
+              cover: rinfo?.cover?.url_list?.[0] || '',
+              streamSnapshot: null,
+              liveUrl: `https://www.tiktok.com/@${username}/live`,
+              battle: null,
+              source: 'webcast',
+            });
+          } catch {}
+        }
+        log(`[webcast] rooms after hashtag API: ${intercepted.size}`);
+      } catch (wcErr) {
+        log(`[webcast] hashtag API error: ${wcErr?.message || wcErr}`);
+      }
+
+      // Also try the web search API — may overlap with webcast results but can add more
+      log('[scrape] also running web-search API fetch');
       // Extract msToken from cookies — TikTok includes it as a URL param in its own requests
       const msToken = await page.evaluate(() =>
         document.cookie.match(/msToken=([^;]+)/)?.[1] || ''
@@ -604,6 +693,27 @@ export async function scrapeAllKeywords(keywords, maxRetries = 3) {
   } catch (probeErr) {
     console.log(`[probe] connectivity FAILED: ${probeErr?.message?.split('\n')[0] || probeErr}`);
     console.log('[probe] → proxy or browser networking is broken, not TikTok-specific');
+  }
+
+  // Session warming: visit TikTok homepage first so the browser gets ttwid,
+  // msToken, and other trust cookies before any search requests fire. Without
+  // this TikTok may treat the session as entirely cold and cap results harder.
+  if (!hasGuestState()) {
+    try {
+      console.log('[warm] loading tiktok.com homepage to establish session cookies…');
+      const warmPage = await context.newPage();
+      await warmPage.goto('https://www.tiktok.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await warmPage.waitForTimeout(4000); // let scripts run and set cookies
+      const cookies = await context.cookies('https://www.tiktok.com');
+      const cookieNames = cookies.map(c => c.name).join(',');
+      console.log(`[warm] session cookies set: ${cookieNames.slice(0, 200)}`);
+      // Save session state so subsequent keywords reuse the warmed cookies
+      await context.storageState({ path: STORAGE_STATE_PATH });
+      await warmPage.close();
+      console.log('[warm] session warming complete');
+    } catch (warmErr) {
+      console.log(`[warm] warming failed (continuing): ${warmErr?.message?.split('\n')[0] || warmErr}`);
+    }
   }
 
   const results = [];
