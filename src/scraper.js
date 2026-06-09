@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-core';
 
 // Clean-slate scraper. easyapi's run log proved the recipe: render
 // tiktok.com/search/live, wait for the grid, then scroll — each scroll fires
