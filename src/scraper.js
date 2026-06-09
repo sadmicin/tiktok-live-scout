@@ -45,9 +45,16 @@ async function launchBrowser() {
   // Headful Chromium under Xvfb — matches easyapi's working stack. Headful is
   // important: TikTok serves the full live grid to a real-looking browser and
   // the gated/blank variant to obvious headless automation.
+  try {
+    const exe = chromium.executablePath();
+    console.log(`[launch] executablePath=${exe} exists=${fs.existsSync(exe)}`);
+  } catch (e) {
+    console.log(`[launch] executablePath unresolved: ${e?.message}`);
+  }
+  console.log(`[launch] DISPLAY=${process.env.DISPLAY || 'unset'} PLAYWRIGHT_BROWSERS_PATH=${process.env.PLAYWRIGHT_BROWSERS_PATH || 'unset'}`);
   const browser = await chromium.launch({
     headless: false,
-    timeout: 60000,
+    timeout: 45000,
     args: [
       '--disable-blink-features=AutomationControlled',
       '--no-sandbox',
