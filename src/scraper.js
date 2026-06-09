@@ -334,15 +334,19 @@ page.on('response', async (response) => {
     const MAX_ROOMS = 200;
     const MAX_PAGES = 8;
 
-    if (bodyLen > 200) {
+    if (bodyLen > 50) {
       // Page rendered — use scroll-based pagination so TikTok's own scroll handler
       // fires API requests with proper security tokens on each scroll
       log('[scrape] page rendered — using scroll-based pagination');
-      const MAX_SCROLLS = 12;
+      // Wait for the initial API response to land before we start scrolling.
+      // The first /api/search/live/full/ fires on page load; give it up to 6s.
+      await page.waitForTimeout(6000);
+      log(`[scrape] after initial wait: intercepted=${intercepted.size}`);
+      const MAX_SCROLLS = 15;
       for (let s = 0; s < MAX_SCROLLS && intercepted.size < MAX_ROOMS; s++) {
         const prevSize = intercepted.size;
         await page.mouse.wheel(0, 1500);
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(2500);
         if (s % 3 === 2) await page.waitForTimeout(1000); // occasional extra wait
         if (s > 0 && intercepted.size === prevSize) {
           log('[scrape] no new rooms after scroll, stopping');
