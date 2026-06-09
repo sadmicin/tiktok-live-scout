@@ -1,631 +1,240 @@
 import fs from 'fs';
-import path from 'path';
-import { firefox } from 'playwright-core';
-import { launchOptions } from 'camoufox-js';
+import { chromium } from 'playwright';
 
-// Camoufox is a Firefox-based anti-detect browser. Unlike Chromium+stealth,
-// it patches fingerprints at the C++ level (0% detection in current benchmarks),
-// which is what's needed to get TikTok's search/live page to actually render.
+// Clean-slate scraper. easyapi's run log proved the recipe: render
+// tiktok.com/search/live, wait for the grid, then scroll — each scroll fires
+// /api/search/live/full/ returning ~12 rooms until the list is exhausted
+// (~85 for "chill"). No auth, no manual signed fetch, no webcast endpoint.
+// We intercept those API responses and parse the raw room objects.
 
 const DEBUG = process.env.DEBUG !== 'FALSE' && process.env.DEBUG !== 'false';
 const GET_IMAGES = process.env.GET_IMAGES === 'true' || process.env.GET_IMAGES === 'TRUE';
-
-function makeLogger() {
-  const lines = [];
-  const log = (...args) => {
-    const msg = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
-    const line = `${new Date().toISOString()} ${msg}`;
-    console.log(msg);
-    lines.push(line);
-  };
-  // debug-only log: captured in runLog but only printed to console in DEBUG mode
-  const dbg = (...args) => {
-    if (!DEBUG) return;
-    log(...args);
-  };
-  return { log, dbg, lines };
-}
-
-const STORAGE_STATE_PATH = path.join(process.cwd(), 'output', 'tiktok-guest-state.json');
 
 const TIKTOK_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-function hasGuestState() {
-  if (!fs.existsSync(STORAGE_STATE_PATH)) return false;
-  try {
-    const ageSec = (Date.now() - fs.statSync(STORAGE_STATE_PATH).mtimeMs) / 1000;
-    if (ageSec > 7200) {
-      console.log(`[state] guest state is ${Math.round(ageSec/60)}m old — discarding`);
-      fs.unlinkSync(STORAGE_STATE_PATH);
-      return false;
-    }
-  } catch {}
-  return true;
+function makeLogger() {
+  const lines = [];
+  const log = (...args) => {
+    const msg = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
+    console.log(msg);
+    lines.push(`${new Date().toISOString()} ${msg}`);
+  };
+  const dbg = (...args) => { if (DEBUG) log(...args); };
+  return { log, dbg, lines };
 }
 
 function liveSearchUrl(keyword) {
   return `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
 }
 
-function parseTikTokCount(value) {
-  if (!value) return 0;
-  const cleaned = String(value).trim().replace(/,/g, '');
-  const match = cleaned.match(/^([0-9]+(?:\.[0-9]+)?)([KMB])?$/i);
-  if (!match) return 0;
-  const number = Number(match[1]);
-  const suffix = (match[2] || '').toUpperCase();
-  const multiplier = suffix === 'B' ? 1_000_000_000 : suffix === 'M' ? 1_000_000 : suffix === 'K' ? 1_000 : 1;
-  return Math.round(number * multiplier);
-}
-
 async function launchBrowser() {
   const proxyServer = process.env.PROXY_SERVER;
   const proxyUsername = process.env.PROXY_USERNAME;
   const proxyPassword = process.env.PROXY_PASSWORD;
-
-  console.log('[proxy] server:', proxyServer || 'NONE — set PROXY_SERVER env var');
+  console.log('[proxy] server:', proxyServer || 'NONE');
   console.log('[proxy] username:', proxyUsername ? proxyUsername.slice(0, 20) + '…' : 'NONE');
 
-  // Connect to the IPRoyal residential proxy over plain HTTP.
   const proxy = proxyServer ? {
     server: `http://${proxyServer}`,
     username: proxyUsername,
     password: proxyPassword,
   } : undefined;
 
-  console.log('[proxy] launching Camoufox (firefox anti-detect)…');
-  // geoip:true makes Camoufox derive timezone, locale and geolocation from the
-  // proxy's exit IP so the fingerprint is internally consistent — key for trust.
-  // humanize adds human-like cursor movement. os:'windows' matches our UA story.
-  // humanize:true spawns a subprocess for cursor simulation; skip it in Docker
-  // (causes browser crash on Railway). os:'windows' matches the proxy geo story.
-  const baseOpts = {
-    headless: false, // run under Xvfb (xvfb-run in start script)
-    os: 'windows',
-    ...(proxy ? { proxy } : {}),
-  };
-  let camoufoxOpts;
-  try {
-    camoufoxOpts = await launchOptions({ ...baseOpts, geoip: !!proxy });
-    console.log('[proxy] camoufox launchOptions ok, executablePath:', camoufoxOpts.executablePath?.slice(-60));
-  } catch (err) {
-    // GeoIP DB may not be present — fall back without it rather than aborting.
-    console.log('[proxy] geoip unavailable, launching without it:', err?.message || err);
-    camoufoxOpts = await launchOptions(baseOpts);
-    console.log('[proxy] camoufox launchOptions fallback ok, executablePath:', camoufoxOpts.executablePath?.slice(-60));
-  }
-
-  const browser = await firefox.launch({
-    ...camoufoxOpts,
+  // Headful Chromium under Xvfb — matches easyapi's working stack. Headful is
+  // important: TikTok serves the full live grid to a real-looking browser and
+  // the gated/blank variant to obvious headless automation.
+  const browser = await chromium.launch({
+    headless: false,
     timeout: 60000,
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      '--no-sandbox',
+      '--disable-dev-shm-usage',
+      '--window-size=1920,1080',
+    ],
     ...(proxy ? { proxy } : {}),
   });
-  browser.on('disconnected', () => console.log('[browser] disconnected (crashed or closed)'));
-  console.log('[proxy] camoufox launched ok');
+  console.log('[proxy] chromium launched ok');
   return browser;
 }
 
 async function newTikTokContext(browser) {
   fs.mkdirSync('output', { recursive: true });
-
-  // Let Camoufox own the fingerprint (UA, locale, timezone, headers, viewport).
-  // Overriding userAgent / sec-ch-ua here would create a Chromium-on-Firefox
-  // mismatch that defeats the whole point of the anti-detect browser.
   const context = await browser.newContext({
+    userAgent: TIKTOK_USER_AGENT,
+    locale: 'en-US',
+    timezoneId: 'America/New_York',
+    viewport: { width: 1920, height: 1080 },
     ignoreHTTPSErrors: true,
-    ...(hasGuestState() ? { storageState: STORAGE_STATE_PATH } : {})
   });
-
+  // Hide the obvious automation tells before any page script runs.
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+  });
   return context;
 }
 
-async function dismissLoginPopup(page) {
-  // Prefer Escape: clicking TikTok's [aria-label="Close"] on the login gate
-  // redirects the page to /search/user. Escape closes the modal in place.
+async function dismissLoginPopup(page, log) {
+  // Escape closes the login modal in place; clicking the generic Close button
+  // can redirect to /search/user, so prefer Escape.
   try {
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(800);
-    if (page.url().includes('/search/live')) {
-      console.log('[popup] dismissed via Escape (stayed on live)');
-      return;
-    }
+    await page.waitForTimeout(600);
   } catch { /* ignore */ }
-  // Fallback: the login-modal-specific close button (not the generic Close).
   for (const sel of ['[data-e2e="modal-close-inner-button"]', '[data-e2e="close-login-modal"]']) {
     try {
-      await page.locator(sel).click({ timeout: 1500 });
-      console.log(`[popup] dismissed login modal via ${sel}`);
-      await page.waitForTimeout(800);
+      await page.locator(sel).click({ timeout: 1200 });
+      log(`[popup] dismissed via ${sel}`);
+      await page.waitForTimeout(500);
       return;
-    } catch { /* not found, try next */ }
+    } catch { /* not present */ }
   }
 }
 
-// Extract live stream cards from the current page DOM.
-// Returns array of { username, title, viewers, viewersRaw, liveUrl, avatarSrc }
-function extractLiveCards() {
-  const results = new Map();
+// Parse the raw room objects from /api/search/live/full/ responses, including
+// PK battle / league info. Dedupes by username into the shared map.
+function makeRoomParser(intercepted) {
+  return function parseItems(items, source) {
+    let added = 0;
+    for (const item of items) {
+      try {
+        const raw = JSON.parse(item?.live_info?.raw_data || '{}');
+        const owner = raw?.owner || {};
+        const username = owner?.display_id || owner?.unique_id || '';
+        if (!username || intercepted.has(username)) continue;
 
-  // TikTok search/live cards have links to /@username/live
-  const liveLinks = Array.from(document.querySelectorAll('a[href*="/live"]'));
+        const linkMic = raw?.link_mic || {};
+        const battleInfo = linkMic?.battle_info || null;
+        const ownerIdStr = String(owner?.id_str || owner?.id || '');
+        let battle = null;
+        if (battleInfo?.battle_id_str) {
+          const leagueMap = battleInfo.league_info_map || {};
+          const armiesMap = battleInfo.armies || {};
+          const scoresArr = linkMic.battle_scores || [];
+          const myScoreEntry = scoresArr.find(s => String(s.user_id) === ownerIdStr || String(s.user_id_str) === ownerIdStr);
+          const myArmy = armiesMap[ownerIdStr] || {};
+          const myLeagueEntry = leagueMap[ownerIdStr]?.league_info || {};
+          battle = {
+            battleId: battleInfo.battle_id_str,
+            league: myLeagueEntry?.display_text?.content || null,
+            leagueIcon: myLeagueEntry?.icon?.url_list?.[0] || null,
+            score: myScoreEntry?.score ?? myArmy?.hostScore ?? null,
+            hostScore: myArmy?.hostScore ?? null,
+            startTime: battleInfo.battle_settings?.start_time_ms || null,
+            duration: battleInfo.battle_settings?.duration || null,
+          };
+        }
 
-  for (const link of liveLinks) {
-    const href = link.href || '';
-    // Match /@username/live
-    const m = href.match(/\/@([^/?#]+)\/live/);
-    if (!m) continue;
-    const username = m[1];
-    if (results.has(username)) continue;
-
-    // Walk up to find the card container
-    let card = link;
-    for (let i = 0; i < 8; i++) {
-      card = card.parentElement;
-      if (!card) break;
-      // Stop at a reasonably-sized container
-      if (card.querySelectorAll('a').length >= 1 && card.innerText && card.innerText.length > 10) break;
+        intercepted.set(username, {
+          id: raw?.id_str || raw?.id || '',
+          username,
+          nickname: owner?.nickname || '',
+          title: raw?.title || '',
+          viewers: raw?.user_count || 0,
+          totalViewers: raw?.stats?.total_user || 0,
+          comments: raw?.stats?.comment_count || 0,
+          shares: raw?.stats?.share_count || 0,
+          followers: owner?.follow_info?.follower_count || 0,
+          avatar: owner?.avatar_thumb?.url_list?.[0] || '',
+          cover: raw?.cover?.url_list?.[0] || '',
+          streamSnapshot: raw?.stream_snapshot?.urls?.[0] || raw?.stream_snapshot?.url_list?.[0] || null,
+          liveUrl: `https://www.tiktok.com/@${username}/live`,
+          battle,
+          source,
+        });
+        added++;
+      } catch { /* skip malformed */ }
     }
-    if (!card) card = link;
-
-    const text = (card.innerText || '').trim();
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-
-    // Viewer count: look for patterns like "1.2K watching", "5K viewers", or just numbers near "watching"
-    let viewersRaw = null;
-    let viewers = 0;
-    for (const line of lines) {
-      const vm = line.match(/^([\d.]+[KMB]?)\s*(watching|viewers?|views?)?$/i);
-      if (vm) {
-        viewersRaw = vm[1];
-        const n = parseFloat(viewersRaw);
-        const s = (viewersRaw.slice(-1) || '').toUpperCase();
-        viewers = Math.round(n * (s === 'B' ? 1e9 : s === 'M' ? 1e6 : s === 'K' ? 1e3 : 1));
-        break;
-      }
-    }
-
-    // Title: first meaningful line that isn't the username or viewer count
-    const title = lines.find(l => l !== username && l !== `@${username}` && l !== viewersRaw && l.length > 1 && !/^\d/.test(l)) || '';
-
-    // Avatar image
-    const img = card.querySelector('img');
-    const avatarSrc = img?.src || img?.currentSrc || null;
-
-    results.set(username, {
-      username,
-      title,
-      viewers,
-      viewersRaw,
-      liveUrl: `https://www.tiktok.com/@${username}/live`,
-      avatarSrc,
-      cardText: text.slice(0, 400),
-    });
-  }
-
-  return Array.from(results.values());
-}
-
-async function scrollAndCollect(page, log, scrollRounds = 12) {
-  const seen = new Map();
-
-  const harvest = async (round) => {
-    const cards = await page.evaluate(extractLiveCards);
-    let newCount = 0;
-    for (const card of cards) {
-      if (!seen.has(card.username)) {
-        seen.set(card.username, card);
-        newCount++;
-      }
-    }
-    log(`[scroll] round ${round}: +${newCount} new, total=${seen.size}`);
-    return newCount;
+    return added;
   };
-
-  // Initial harvest after page load
-  await harvest(0);
-
-  for (let i = 1; i <= scrollRounds; i++) {
-    await page.mouse.wheel(0, 1200);
-    await page.waitForTimeout(1800);
-    // Extra wait every 4 rounds to let lazy-loaded content appear
-    if (i % 4 === 0) await page.waitForTimeout(1500);
-    await harvest(i);
-  }
-
-  return Array.from(seen.values());
 }
 
-async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
+async function scrapeKeywordOnce(keyword, context, log, dbg) {
   const startTime = Date.now();
   let screenshotBase64 = null;
+  const page = await context.newPage();
 
   try {
-    const page = await context.newPage();
-    page.on('crash', () => log('[page] CRASHED'));
+    const intercepted = new Map();
+    const parseItems = makeRoomParser(intercepted);
 
-    const intercepted = new Map(); // username -> room, deduped
-
-    function parseItemsIntoIntercepted(items, source) {
-      let added = 0;
-      for (const item of items) {
-        try {
-          const raw = JSON.parse(item?.live_info?.raw_data || '{}');
-          const owner = raw?.owner || {};
-          const username = owner?.display_id || owner?.unique_id || '';
-          if (!username || intercepted.has(username)) continue;
-          const linkMic = raw?.link_mic || {};
-          const battleInfo = linkMic?.battle_info || null;
-          const ownerIdStr = String(owner?.id_str || owner?.id || '');
-          let battle = null;
-          if (battleInfo?.battle_id_str) {
-            const leagueMap = battleInfo.league_info_map || {};
-            const armiesMap = battleInfo.armies || {};
-            const scoresArr = linkMic.battle_scores || [];
-            const myScoreEntry = scoresArr.find(s => String(s.user_id) === ownerIdStr || String(s.user_id_str) === ownerIdStr);
-            const myArmy = armiesMap[ownerIdStr] || {};
-            const myLeagueEntry = leagueMap[ownerIdStr]?.league_info || {};
-            battle = {
-              battleId: battleInfo.battle_id_str,
-              league: myLeagueEntry?.display_text?.content || null,
-              leagueIcon: myLeagueEntry?.icon?.url_list?.[0] || null,
-              score: myScoreEntry?.score ?? myArmy?.hostScore ?? null,
-              hostScore: myArmy?.hostScore ?? null,
-              startTime: battleInfo.battle_settings?.start_time_ms || null,
-              duration: battleInfo.battle_settings?.duration || null,
-            };
-          }
-          intercepted.set(username, {
-            id: raw?.id_str || raw?.id || '',
-            username,
-            nickname: owner?.nickname || '',
-            title: raw?.title || '',
-            viewers: raw?.user_count || 0,
-            totalViewers: raw?.stats?.total_user || 0,
-            comments: raw?.stats?.comment_count || 0,
-            shares: raw?.stats?.share_count || 0,
-            followers: owner?.follow_info?.follower_count || 0,
-            avatar: owner?.avatar_thumb?.url_list?.[0] || '',
-            cover: raw?.cover?.url_list?.[0] || '',
-            streamSnapshot: raw?.stream_snapshot?.urls?.[0] || raw?.stream_snapshot?.url_list?.[0] || null,
-            liveUrl: `https://www.tiktok.com/@${username}/live`,
-            battle,
-            source,
-          });
-          added++;
-        } catch {}
-      }
-      return added;
-    }
-
-page.on('response', async (response) => {
+    // Intercept the live-search API responses fired on load + each scroll.
+    page.on('response', async (response) => {
       const url = response.url();
-      if (!url.includes('tiktok.com') || !url.includes('/api/')) return;
-      // Log every API URL so we can see what TikTok is calling
-      log(`[api] ${url.slice(0, 150)}`);
-      if (!url.includes('/api/search/') && !(url.includes('live') && url.includes('list'))) return;
+      if (!url.includes('/api/search/live/full/')) return;
       try {
         const json = await response.json();
-        const items = json?.data || json?.live_list || json?.item_list || json?.lives || [];
+        const items = json?.data || [];
         if (!Array.isArray(items) || items.length === 0) return;
-        log(`[intercept] api hit: ${items.length} items, hasRaw=${items.some(i => i?.live_info?.raw_data)} url=${url.slice(0, 80)}`);
-        if (!items.some(i => i?.live_info?.raw_data)) return;
-        const added = parseItemsIntoIntercepted(items, 'intercepted');
-        if (added > 0) log(`[intercept] +${added} rooms (total=${intercepted.size})`);
-      } catch {}
+        const added = parseItems(items, 'scroll');
+        if (added > 0) log(`[api] +${added} rooms (total=${intercepted.size}) hasMore=${json?.has_more}`);
+      } catch { /* non-JSON or already consumed */ }
     });
 
-    const liveUrl = `https://www.tiktok.com/search/live?q=${encodeURIComponent(keyword)}&t=${Date.now()}`;
+    const url = liveSearchUrl(keyword);
+    log(`[scrape] keyword="${keyword}" goto ${url.slice(0, 70)}`);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(3000);
+    await dismissLoginPopup(page, log);
 
-    if (hasGuestState()) {
-      dbg(`[scrape] fast path`);
-      await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForTimeout(3000);
-    } else {
-      dbg(`[scrape] slow path`);
-      await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForTimeout(5000); // extra time for signing scripts to load
-    }
-    await dismissLoginPopup(page);
-
-    // After popup dismiss TikTok sometimes redirects to /search/user — re-navigate
-    // to the live URL if we ended up somewhere else.
+    // If TikTok bounced us to /search/user, go back to the live tab.
     if (!page.url().includes('/search/live')) {
-      log(`[scrape] redirected to ${page.url().slice(0,80)}, re-navigating to live search`);
-      await page.goto(liveUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      log(`[scrape] redirected to ${page.url().slice(0, 60)} — re-navigating`);
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForTimeout(3000);
     }
 
+    // Give the initial grid time to render + fire its first API pages
+    // (easyapi waits ~12s after load before scrolling).
+    await page.waitForTimeout(9000);
     const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0);
-    log(`[scrape] url=${page.url().slice(0,80)} bodyLen=${bodyLen}`);
+    log(`[scrape] after load: bodyLen=${bodyLen} rooms=${intercepted.size}`);
 
-    // Check for TikTok's X-Bogus/signing globals — they load even on blank pages
-    const signingInfo = await page.evaluate(() => {
-      const keys = Object.keys(window);
-      const relevant = keys.filter(k => /bogus|acrawl|sign|xbogus|byted|msdk|tiktok|webpack/i.test(k));
-      const hasByted = typeof window.byted_acrawler !== 'undefined';
-      const bytedKeys = hasByted ? Object.keys(window.byted_acrawler) : [];
-      // Check Next.js / webpack chunk globals TikTok uses
-      const webpackKey = keys.find(k => k.startsWith('webpackChunk'));
-      const hasNextData = typeof window.__NEXT_DATA__ !== 'undefined';
-      // Try to probe the encrypt function signature
-      const encryptType = hasByted ? typeof window.byted_acrawler.encrypt : 'n/a';
-      const signType = hasByted ? typeof window.byted_acrawler.sign : 'n/a';
-      return { relevant, hasByted, bytedKeys, webpackKey: webpackKey || null, hasNextData, encryptType, signType };
-    });
-    log(`[signing] hasByted=${signingInfo.hasByted} bytedKeys=${signingInfo.bytedKeys.join(',')} encrypt=${signingInfo.encryptType} sign=${signingInfo.signType}`);
-
-    const MAX_ROOMS = 200;
-    const MAX_PAGES = 8;
-
-    if (bodyLen > 50) {
-      // Page rendered — use scroll-based pagination so TikTok's own scroll handler
-      // fires API requests with proper security tokens on each scroll
-      log('[scrape] page rendered — using scroll-based pagination');
-      // Wait for the initial API response to land before we start scrolling.
-      // The first /api/search/live/full/ fires on page load; give it up to 6s.
-      await page.waitForTimeout(6000);
-      log(`[scrape] after initial wait: intercepted=${intercepted.size}`);
-      const MAX_SCROLLS = 15;
-      for (let s = 0; s < MAX_SCROLLS && intercepted.size < MAX_ROOMS; s++) {
-        const prevSize = intercepted.size;
-        await page.mouse.wheel(0, 1500);
-        await page.waitForTimeout(2500);
-        if (s % 3 === 2) await page.waitForTimeout(1000); // occasional extra wait
-        if (s > 0 && intercepted.size === prevSize) {
-          log('[scrape] no new rooms after scroll, stopping');
-          break;
-        }
-        if (intercepted.size > prevSize) log(`[scrape] scroll ${s+1}: +${intercepted.size - prevSize} new (total=${intercepted.size})`);
+    // Native scroll loop — the only path that gets the full result set.
+    const MAX_SCROLLS = 30;
+    const MAX_ROOMS = 300;
+    let stale = 0;
+    for (let s = 0; s < MAX_SCROLLS && intercepted.size < MAX_ROOMS; s++) {
+      const prev = intercepted.size;
+      await page.mouse.wheel(0, 2000);
+      await page.waitForTimeout(3000);
+      if (intercepted.size === prev) {
+        stale++;
+        // Allow a couple of empty scrolls before declaring the end.
+        if (stale >= 3) { log(`[scrape] reached end of results after ${s + 1} scrolls`); break; }
+      } else {
+        stale = 0;
+        log(`[scrape] scroll ${s + 1}: +${intercepted.size - prev} (total=${intercepted.size})`);
       }
     }
 
-    // Fetch fallback: runs whenever scroll/intercept collected nothing (blank
-    // page, or a rendered page that served the Users tab instead of Live). The
-    // signed evaluate-fetch works regardless of what the DOM rendered.
-    if (intercepted.size === 0) {
-      log('[scrape] no rooms from scroll/intercept — trying webcast hashtag API first');
+    const rooms = Array.from(intercepted.values());
 
-      // webcast.tiktok.com/webcast/hashtag/anchor/ is TikTok's mobile-app live
-      // discovery endpoint. Unlike /api/search/live/full/ it doesn't enforce a
-      // one-page guest cap. We use context.request (Playwright's Node-layer HTTP
-      // client) rather than page.evaluate(fetch(...)) because TikTok's
-      // tiktok_privacy_protection_framework wraps window.fetch and blocks
-      // cross-origin calls to webcast.tiktok.com from within the page.
-      try {
-        const cookieList = await context.cookies('https://webcast.tiktok.com');
-        const cookieHeader = cookieList.map(c => `${c.name}=${c.value}`).join('; ');
-        const webcams = [];
-        let cursor = '0';
-        for (let p = 0; p < 6; p++) {
-          const params = new URLSearchParams({
-            hashtag_name: keyword,
-            offset: cursor,
-            count: '30',
-            type: '0',
-            aid: '1988',
-            device_platform: 'web_pc',
-            app_name: 'tiktok_web',
-            channel: 'tiktok_web',
-            cookie_enabled: 'true',
-            screen_width: '1920',
-            screen_height: '1080',
-            browser_language: 'en-US',
-            browser_platform: 'Win32',
-            browser_name: 'Mozilla',
-            region: 'US',
-            tz_name: 'America/New_York',
-          });
-          const url = `https://webcast.tiktok.com/webcast/hashtag/anchor/?${params}`;
-          log(`[webcast] page=${p} cursor=${cursor} url=${url.slice(0, 120)}`);
-          const resp = await context.request.fetch(url, {
-            headers: {
-              'Cookie': cookieHeader,
-              'Referer': 'https://www.tiktok.com/',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-              'Accept': 'application/json, text/plain, */*',
-            },
-          });
-          log(`[webcast] page=${p} status=${resp.status()}`);
-          if (!resp.ok()) break;
-          const json = await resp.json();
-          log(`[webcast] page=${p} status_code=${json?.status_code} keys=${Object.keys(json?.data || json || {}).join(',').slice(0, 80)}`);
-          if (json?.status_code !== 0 && json?.statusCode !== 0) break;
-          const data = json?.data || json;
-          const list = data?.anchor_list || data?.room_list || data?.live_room_list || data?.rooms || [];
-          log(`[webcast] page=${p} list.length=${list.length}`);
-          if (!Array.isArray(list) || list.length === 0) break;
-          webcams.push(...list);
-          const hasMore = data?.has_more ?? data?.hasMore ?? 0;
-          if (!hasMore) break;
-          const nextCursor = data?.cursor ?? data?.offset ?? null;
-          if (nextCursor == null || String(nextCursor) === cursor) break;
-          cursor = String(nextCursor);
-        }
-
-        // Parse webcast rooms — different schema from web search API
-        for (const room of (webcams || [])) {
-          try {
-            const owner = room?.user || room?.anchor || room?.owner || {};
-            const username = owner?.uniqueId || owner?.unique_id || owner?.display_id || owner?.loginName || '';
-            if (!username || intercepted.has(username)) continue;
-            const rinfo = room?.room_info || room?.roomInfo || room || {};
-            intercepted.set(username, {
-              id: rinfo?.roomId || rinfo?.room_id || room?.room_id || '',
-              username,
-              nickname: owner?.nickname || '',
-              title: rinfo?.title || room?.title || '',
-              viewers: rinfo?.userCount || rinfo?.user_count || room?.user_count || 0,
-              totalViewers: rinfo?.stats?.totalUser || 0,
-              comments: 0,
-              shares: 0,
-              followers: owner?.followerCount || owner?.follow_info?.follower_count || 0,
-              avatar: owner?.avatarThumb?.url_list?.[0] || owner?.avatar_thumb?.url_list?.[0] || '',
-              cover: rinfo?.cover?.url_list?.[0] || '',
-              streamSnapshot: null,
-              liveUrl: `https://www.tiktok.com/@${username}/live`,
-              battle: null,
-              source: 'webcast',
-            });
-          } catch {}
-        }
-        log(`[webcast] rooms after hashtag API: ${intercepted.size}`);
-      } catch (wcErr) {
-        log(`[webcast] hashtag API error: ${wcErr?.message || wcErr}`);
-      }
-
-      // Also try the web search API — may overlap with webcast results but can add more
-      log('[scrape] also running web-search API fetch');
-      // Extract msToken from cookies — TikTok includes it as a URL param in its own requests
-      const msToken = await page.evaluate(() =>
-        document.cookie.match(/msToken=([^;]+)/)?.[1] || ''
-      );
-
-      const fetchParams = {
-        keyword,
-        count: '30',
-        aid: '1988',
-        app_language: 'en',
-        app_name: 'tiktok_web',
-        browser_language: 'en-US',
-        browser_name: 'Mozilla',
-        browser_online: 'true',
-        browser_platform: 'Win32',
-        browser_version: '5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        channel: 'tiktok_web',
-        cookie_enabled: 'true',
-        device_platform: 'web_pc',
-        focus_state: 'true',
-        from_page: 'search',
-        history_len: '2',
-        is_fullscreen: 'false',
-        is_page_visible: 'true',
-        os: 'windows',
-        priority_region: '',
-        referer: '',
-        region: 'US',
-        screen_height: '1080',
-        screen_width: '1920',
-        tz_name: 'America/New_York',
-        webcast_language: 'en',
-        ...(msToken ? { msToken } : {}),
-      };
-      log(`[fetch] msToken=${msToken ? msToken.slice(0, 20) + '…' : 'none'}`);
-      // Advance offset by the server's cursor (or by items actually received),
-      // NOT by a fixed page*30 — TikTok may return fewer than `count` per page,
-      // and jumping to 30 after receiving 16 skips items 16-29 and trips has_more.
-      let offset = 0;
-      for (let p = 0; p < MAX_PAGES && intercepted.size < MAX_ROOMS; p++) {
-        let result;
-        try {
-          result = await page.evaluate(async ({ fp, off }) => {
-            try {
-              const params = new URLSearchParams({ ...fp, offset: String(off) });
-              let url = `/api/search/live/full/?${params}`;
-
-              // Sign with byted_acrawler if available — unlocks page 2+
-              let signed = false;
-              let signDebug = null;
-              if (window.byted_acrawler) {
-                try {
-                  const fullUrl = location.origin + url;
-                  const s = window.byted_acrawler.frontierSign?.(fullUrl)
-                         ?? window.byted_acrawler.encrypt?.({ url: fullUrl })
-                         ?? null;
-                  signDebug = JSON.stringify(s);
-                  if (s) {
-                    const bogus = s['X-Bogus'] ?? s.xBogus ?? s.bogus ?? null;
-                    const sig   = s['_signature'] ?? s.signature ?? null;
-                    if (bogus) url += `&X-Bogus=${encodeURIComponent(bogus)}`;
-                    if (sig)   url += `&_signature=${encodeURIComponent(sig)}`;
-                    signed = !!(bogus || sig);
-                  }
-                } catch (e) { signDebug = 'err:' + e.message; }
-              }
-
-              const res = await fetch(url, {
-                credentials: 'include',
-                headers: { 'Referer': location.href, 'Accept': '*/*' },
-              });
-              if (!res.ok) return { error: res.status };
-              const json = await res.json();
-              return { ok: true, hasMore: json?.has_more, cursor: json?.cursor ?? null, count: (json?.data || []).length, data: json?.data || [], signed, signDebug };
-            } catch (e) { return { error: String(e) }; }
-          }, { fp: fetchParams, off: offset });
-        } catch (evalErr) {
-          log(`[fetch] offset=${offset} context destroyed, keeping ${intercepted.size} rooms`);
-          break;
-        }
-        if (result.error) { log(`[fetch] offset=${offset} error=${result.error}`); break; }
-        const added = parseItemsIntoIntercepted(result.data || [], 'fetch');
-        if (p <= 1) log(`[fetch] offset=${offset} signDebug=${result.signDebug} cursor=${result.cursor}`);
-        log(`[fetch] offset=${offset}: +${added} new (total=${intercepted.size}) returned=${result.count} hasMore=${result.hasMore} signed=${result.signed}`);
-        if (!result.hasMore || result.count === 0) break;
-        // Advance by the number of items ACTUALLY received, not the server's
-        // cursor. TikTok returns 14 items but cursor=30; trusting the cursor
-        // skips items 15-29 and the next request comes back empty. Stepping by
-        // the real count keeps the window contiguous.
-        const step = result.count || 30;
-        offset = offset + step;
-        await page.waitForTimeout(400);
-      }
+    if (GET_IMAGES && rooms.length > 0) {
+      await embedImages(rooms, dbg);
     }
 
-    const fetchedRooms = Array.from(intercepted.values());
-    log(`[scrape] keyword="${keyword}" total=${fetchedRooms.length} rooms`);
-
-    // TODO: store images in Cloudflare R2 for permanent URLs instead of base64
-    // See TODO.md — needs R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET env vars
-    if (GET_IMAGES && fetchedRooms.length > 0) {
-      async function fetchImageBase64(url) {
-        if (!url) return null;
-        try {
-          const res = await fetch(url, {
-            headers: { 'User-Agent': TIKTOK_USER_AGENT, 'Referer': 'https://www.tiktok.com/' },
-          });
-          if (!res.ok) return null;
-          const buf = Buffer.from(await res.arrayBuffer());
-          const mime = res.headers.get('content-type') || 'image/jpeg';
-          return `data:${mime.split(';')[0]};base64,` + buf.toString('base64');
-        } catch { return null; }
-      }
-
-      await Promise.all(fetchedRooms.map(async (room) => {
-        room.streamSnapshotBase64 = await fetchImageBase64(room.streamSnapshot || null);
-        room.avatarBase64 = await fetchImageBase64(room.avatar || null);
-      }));
-
-      const embedded = fetchedRooms.filter(r => r.streamSnapshotBase64).length;
-      dbg(`[images] embedded ${embedded}/${fetchedRooms.length} snapshots`);
-    }
-
-    const rooms = fetchedRooms;
-
-    // Save updated guest state
-    await context.storageState({ path: STORAGE_STATE_PATH });
     try {
-      screenshotBase64 = (await page.screenshot({ fullPage: false, type: 'png', timeout: 8000 })).toString('base64');
-    } catch { dbg('[scrape] screenshot failed, continuing'); }
-
-    await page.close();
+      screenshotBase64 = (await page.screenshot({ type: 'png', timeout: 8000 })).toString('base64');
+    } catch { dbg('[scrape] screenshot failed'); }
 
     const durationMs = Date.now() - startTime;
-    log(`[scrape] done keyword="${keyword}" rooms=${rooms.length} duration=${(durationMs/1000).toFixed(1)}s`);
+    log(`[scrape] done keyword="${keyword}" rooms=${rooms.length} duration=${(durationMs / 1000).toFixed(1)}s`);
     return {
       keyword,
       collected_at: new Date().toISOString(),
       durationMs,
-      mode: 'fetch',
+      mode: 'scroll',
       roomCount: rooms.length,
       rooms,
       screenshotBase64,
     };
   } catch (err) {
     const durationMs = Date.now() - startTime;
-    const errMsg = err.message || String(err);
-    const errStack = err.stack?.split('\n').slice(0,3).join(' | ') || '';
-    log(`[scrape] error keyword="${keyword}" duration=${(durationMs/1000).toFixed(1)}s error=${errMsg} stack=${errStack}`);
+    const errMsg = err?.message || String(err);
+    log(`[scrape] error keyword="${keyword}" error=${errMsg}`);
     return {
       keyword,
       collected_at: new Date().toISOString(),
@@ -636,138 +245,62 @@ page.on('response', async (response) => {
       rooms: [],
       screenshotBase64,
     };
+  } finally {
+    try { await page.close(); } catch { /* already closed */ }
   }
 }
 
-function isTunnelError(error) {
-  const e = (error || '').toLowerCase();
-  return e.includes('tunnel') || e.includes('proxy') || e.includes('err_') || e.includes('connection refused') || e.includes('econnrefused') || e.includes('socket');
-}
-
-export async function scrapeTikTokLive(keyword, context, maxRetries = 3) {
-  const { log, dbg, lines: runLog } = makeLogger();
-  const startTime = Date.now();
-  log(`[scrape] start keyword="${keyword}"`);
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const result = await scrapeTikTokLiveOnce(keyword, context, log, dbg);
-    if (result.mode !== 'failed' || !isTunnelError(result.error)) {
-      return { ...result, runLog };
-    }
-    log(`[scrape] tunnel failure attempt ${attempt}/${maxRetries}, retrying...`);
-    if (attempt < maxRetries) await new Promise(r => setTimeout(r, 2000 * attempt));
-  }
-
-  const durationMs = Date.now() - startTime;
-  log(`[scrape] all ${maxRetries} attempts failed for keyword="${keyword}"`);
-  return {
-    keyword,
-    collected_at: new Date().toISOString(),
-    durationMs,
-    mode: 'failed',
-    error: 'Max retries exceeded — tunnel failures',
-    roomCount: 0,
-    rooms: [],
-    runLog,
-    screenshotBase64: null,
-  };
-}
-
-export async function scrapeAllKeywords(keywords, maxRetries = 3) {
-  console.log('[run] launching browser…');
-  let browser;
-  try {
-    browser = await launchBrowser();
-  } catch (err) {
-    console.error('[run] BROWSER LAUNCH FAILED:', err?.message || err);
-    console.error('[run] stack:', err?.stack?.split('\n').slice(0, 5).join(' | '));
-    throw err;
-  }
-  let context = await newTikTokContext(browser);
-  console.log(`[run] browser launched, scraping ${keywords.length} keyword(s)`);
-
-  // Connectivity probe: hit a neutral endpoint to isolate proxy failure from
-  // TikTok-specific blocking. If this fails too, the proxy/browser is the issue.
-  try {
-    const probe = await context.newPage();
-    await probe.goto('https://api.ipify.org?format=json', { waitUntil: 'domcontentloaded', timeout: 20000 });
-    const ip = await probe.evaluate(() => document.body?.innerText || '').catch(() => '');
-    console.log(`[probe] connectivity OK — exit IP: ${ip.slice(0, 120)}`);
-    await probe.close();
-  } catch (probeErr) {
-    console.log(`[probe] connectivity FAILED: ${probeErr?.message?.split('\n')[0] || probeErr}`);
-    console.log('[probe] → proxy or browser networking is broken, not TikTok-specific');
-  }
-
-  // Session warming: visit TikTok homepage first so the browser gets ttwid,
-  // msToken, and other trust cookies before any search requests fire. Without
-  // this TikTok may treat the session as entirely cold and cap results harder.
-  if (!hasGuestState()) {
+async function embedImages(rooms, dbg) {
+  async function toBase64(url) {
+    if (!url) return null;
     try {
-      console.log('[warm] loading tiktok.com homepage to establish session cookies…');
-      const warmPage = await context.newPage();
-      await warmPage.goto('https://www.tiktok.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
-      await warmPage.waitForTimeout(4000); // let scripts run and set cookies
-      const cookies = await context.cookies('https://www.tiktok.com');
-      const cookieNames = cookies.map(c => c.name).join(',');
-      console.log(`[warm] session cookies set: ${cookieNames.slice(0, 200)}`);
-      // Save session state so subsequent keywords reuse the warmed cookies
-      await context.storageState({ path: STORAGE_STATE_PATH });
-      await warmPage.close();
-      console.log('[warm] session warming complete');
-    } catch (warmErr) {
-      console.log(`[warm] warming failed (continuing): ${warmErr?.message?.split('\n')[0] || warmErr}`);
-    }
+      const res = await fetch(url, { headers: { 'User-Agent': TIKTOK_USER_AGENT, 'Referer': 'https://www.tiktok.com/' } });
+      if (!res.ok) return null;
+      const buf = Buffer.from(await res.arrayBuffer());
+      const mime = (res.headers.get('content-type') || 'image/jpeg').split(';')[0];
+      return `data:${mime};base64,` + buf.toString('base64');
+    } catch { return null; }
   }
+  await Promise.all(rooms.map(async (room) => {
+    room.streamSnapshotBase64 = await toBase64(room.streamSnapshot);
+    room.avatarBase64 = await toBase64(room.avatar);
+  }));
+  dbg(`[images] embedded ${rooms.filter(r => r.streamSnapshotBase64).length}/${rooms.length} snapshots`);
+}
+
+export async function scrapeAllKeywords(keywords) {
+  const { log, dbg, lines } = makeLogger();
+  console.log('[run] launching browser…');
+  const browser = await launchBrowser();
+  const context = await newTikTokContext(browser);
+  console.log(`[run] scraping ${keywords.length} keyword(s)`);
 
   const results = [];
   try {
     for (const keyword of keywords) {
-      const result = await scrapeTikTokLive(keyword, context, maxRetries);
-      results.push(result);
-      // Tunnel failure exhausted all retries — relaunch browser for remaining keywords
-      if (result.mode === 'failed' && isTunnelError(result.error)) {
-        console.log('[run] tunnel failure, relaunching browser for remaining keywords');
-        try { await browser.close(); } catch {}
-        browser = await launchBrowser();
-        context = await newTikTokContext(browser);
-      }
+      const result = await scrapeKeywordOnce(keyword, context, log, dbg);
+      results.push({ ...result, runLog: lines.slice() });
     }
   } finally {
-    try { await browser.close(); } catch {}
+    try { await browser.close(); } catch { /* ignore */ }
   }
-
   return results;
 }
 
-export async function debugTikTokPage(keyword = 'battle') {
+export async function debugTikTokPage(keyword = 'Live') {
+  const { log, dbg } = makeLogger();
   const browser = await launchBrowser();
   const context = await newTikTokContext(browser);
-  const page = await context.newPage();
-  const url = liveSearchUrl(keyword);
-
-  let gotoError = null;
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await dismissLoginPopup(page);
-    await page.waitForTimeout(5000);
-    await page.mouse.wheel(0, 3000);
-    await page.waitForTimeout(3000);
-  } catch (err) {
-    gotoError = err.message;
+    const result = await scrapeKeywordOnce(keyword, context, log, dbg);
+    return {
+      checked_at: new Date().toISOString(),
+      keyword,
+      roomCount: result.roomCount,
+      rooms: result.rooms,
+      screenshotBase64: result.screenshotBase64,
+    };
+  } finally {
+    try { await browser.close(); } catch { /* ignore */ }
   }
-
-  const cards = await page.evaluate(extractLiveCards);
-  const screenshot = await page.screenshot({ fullPage: true, type: 'png' });
-  await browser.close();
-
-  return {
-    checked_at: new Date().toISOString(),
-    keyword,
-    requestedUrl: url,
-    gotoError,
-    roomCount: cards.length,
-    rooms: cards,
-    screenshotBase64: screenshot.toString('base64'),
-  };
 }
