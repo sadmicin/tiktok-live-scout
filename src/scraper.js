@@ -122,15 +122,20 @@ async function newTikTokContext(browser) {
 }
 
 async function dismissLoginPopup(page) {
-  const selectors = [
-    '[aria-label="Close"]',
-    '[data-e2e="modal-close-inner-button"]',
-    '[data-e2e="close-login-modal"]',
-    'button[class*="close" i]',
-  ];
-  for (const sel of selectors) {
+  // Prefer Escape: clicking TikTok's [aria-label="Close"] on the login gate
+  // redirects the page to /search/user. Escape closes the modal in place.
+  try {
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(800);
+    if (page.url().includes('/search/live')) {
+      console.log('[popup] dismissed via Escape (stayed on live)');
+      return;
+    }
+  } catch { /* ignore */ }
+  // Fallback: the login-modal-specific close button (not the generic Close).
+  for (const sel of ['[data-e2e="modal-close-inner-button"]', '[data-e2e="close-login-modal"]']) {
     try {
-      await page.locator(sel).click({ timeout: 2000 });
+      await page.locator(sel).click({ timeout: 1500 });
       console.log(`[popup] dismissed login modal via ${sel}`);
       await page.waitForTimeout(800);
       return;
