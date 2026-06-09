@@ -562,10 +562,12 @@ page.on('response', async (response) => {
         if (p <= 1) log(`[fetch] offset=${offset} signDebug=${result.signDebug} cursor=${result.cursor}`);
         log(`[fetch] offset=${offset}: +${added} new (total=${intercepted.size}) returned=${result.count} hasMore=${result.hasMore} signed=${result.signed}`);
         if (!result.hasMore || result.count === 0) break;
-        // Advance by server cursor when provided, else by items received this page.
-        offset = (result.cursor != null && Number(result.cursor) > offset)
-          ? Number(result.cursor)
-          : offset + (result.count || 30);
+        // Advance by the number of items ACTUALLY received, not the server's
+        // cursor. TikTok returns 14 items but cursor=30; trusting the cursor
+        // skips items 15-29 and the next request comes back empty. Stepping by
+        // the real count keeps the window contiguous.
+        const step = result.count || 30;
+        offset = offset + step;
         await page.waitForTimeout(400);
       }
     }
