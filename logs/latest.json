@@ -1,51 +1,51 @@
 {
-  "created_at": "2026-06-09T02:37:16.433Z",
-  "commit": "b852f3bf7a7141576740cb6c42f300589b64b6a6",
-  "durationMs": 4770,
+  "created_at": "2026-06-09T02:43:08.520Z",
+  "commit": "c1b8cffd72af13a4a7a3920e55754dead0a6d486",
+  "durationMs": 4122,
   "results": [
     {
       "keyword": "chill",
-      "collected_at": "2026-06-09T02:37:15.380Z",
-      "durationMs": 901,
+      "collected_at": "2026-06-09T02:43:07.306Z",
+      "durationMs": 864,
       "mode": "failed",
-      "error": "page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1780972634932\", waiting until \"domcontentloaded\"\n",
+      "error": "page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1780972986963\", waiting until \"domcontentloaded\"\n",
       "roomCount": 0,
       "rooms": [],
       "screenshotBase64": null,
       "runLog": [
-        "2026-06-09T02:37:14.479Z [scrape] start keyword=\"chill\"",
-        "2026-06-09T02:37:14.932Z [scrape] slow path",
-        "2026-06-09T02:37:15.380Z [scrape] error keyword=\"chill\" duration=0.9s error=page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1780972634932\", waiting until \"domcontentloaded\"\n stack=page.goto: <unknown error> | Call log: |   - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1780972634932\", waiting until \"domcontentloaded\""
+        "2026-06-09T02:43:06.441Z [scrape] start keyword=\"chill\"",
+        "2026-06-09T02:43:06.964Z [scrape] slow path",
+        "2026-06-09T02:43:07.306Z [scrape] error keyword=\"chill\" duration=0.9s error=page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1780972986963\", waiting until \"domcontentloaded\"\n stack=page.goto: <unknown error> | Call log: |   - navigating to \"https://www.tiktok.com/search/live?q=chill&t=1780972986963\", waiting until \"domcontentloaded\""
       ]
     },
     {
       "keyword": "vibes",
-      "collected_at": "2026-06-09T02:37:15.773Z",
-      "durationMs": 392,
+      "collected_at": "2026-06-09T02:43:07.720Z",
+      "durationMs": 413,
       "mode": "failed",
-      "error": "page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1780972635543\", waiting until \"domcontentloaded\"\n",
+      "error": "page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1780972987492\", waiting until \"domcontentloaded\"\n",
       "roomCount": 0,
       "rooms": [],
       "screenshotBase64": null,
       "runLog": [
-        "2026-06-09T02:37:15.381Z [scrape] start keyword=\"vibes\"",
-        "2026-06-09T02:37:15.543Z [scrape] slow path",
-        "2026-06-09T02:37:15.773Z [scrape] error keyword=\"vibes\" duration=0.4s error=page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1780972635543\", waiting until \"domcontentloaded\"\n stack=page.goto: <unknown error> | Call log: |   - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1780972635543\", waiting until \"domcontentloaded\""
+        "2026-06-09T02:43:07.307Z [scrape] start keyword=\"vibes\"",
+        "2026-06-09T02:43:07.492Z [scrape] slow path",
+        "2026-06-09T02:43:07.720Z [scrape] error keyword=\"vibes\" duration=0.4s error=page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1780972987492\", waiting until \"domcontentloaded\"\n stack=page.goto: <unknown error> | Call log: |   - navigating to \"https://www.tiktok.com/search/live?q=vibes&t=1780972987492\", waiting until \"domcontentloaded\""
       ]
     },
     {
       "keyword": "friends",
-      "collected_at": "2026-06-09T02:37:16.178Z",
+      "collected_at": "2026-06-09T02:43:08.125Z",
       "durationMs": 405,
       "mode": "failed",
-      "error": "page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1780972635934\", waiting until \"domcontentloaded\"\n",
+      "error": "page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1780972987891\", waiting until \"domcontentloaded\"\n",
       "roomCount": 0,
       "rooms": [],
       "screenshotBase64": null,
       "runLog": [
-        "2026-06-09T02:37:15.773Z [scrape] start keyword=\"friends\"",
-        "2026-06-09T02:37:15.934Z [scrape] slow path",
-        "2026-06-09T02:37:16.178Z [scrape] error keyword=\"friends\" duration=0.4s error=page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1780972635934\", waiting until \"domcontentloaded\"\n stack=page.goto: <unknown error> | Call log: |   - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1780972635934\", waiting until \"domcontentloaded\""
+        "2026-06-09T02:43:07.720Z [scrape] start keyword=\"friends\"",
+        "2026-06-09T02:43:07.891Z [scrape] slow path",
+        "2026-06-09T02:43:08.125Z [scrape] error keyword=\"friends\" duration=0.4s error=page.goto: <unknown error>\nCall log:\n  - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1780972987891\", waiting until \"domcontentloaded\"\n stack=page.goto: <unknown error> | Call log: |   - navigating to \"https://www.tiktok.com/search/live?q=friends&t=1780972987891\", waiting until \"domcontentloaded\""
       ]
     }
   ]
