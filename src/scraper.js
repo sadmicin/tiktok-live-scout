@@ -417,8 +417,11 @@ page.on('response', async (response) => {
         ...(msToken ? { msToken } : {}),
       };
       log(`[fetch] msToken=${msToken ? msToken.slice(0, 20) + '…' : 'none'}`);
+      // Advance offset by the server's cursor (or by items actually received),
+      // NOT by a fixed page*30 — TikTok may return fewer than `count` per page,
+      // and jumping to 30 after receiving 16 skips items 16-29 and trips has_more.
+      let offset = 0;
       for (let p = 0; p < MAX_PAGES && intercepted.size < MAX_ROOMS; p++) {
-        const offset = p * 30;
         let result;
         try {
           result = await page.evaluate(async ({ fp, off }) => {
@@ -452,7 +455,7 @@ page.on('response', async (response) => {
               });
               if (!res.ok) return { error: res.status };
               const json = await res.json();
-              return { ok: true, hasMore: json?.has_more, cursor: json?.cursor ?? null, data: json?.data || [], signed, signDebug };
+              return { ok: true, hasMore: json?.has_more, cursor: json?.cursor ?? null, count: (json?.data || []).length, data: json?.data || [], signed, signDebug };
             } catch (e) { return { error: String(e) }; }
           }, { fp: fetchParams, off: offset });
         } catch (evalErr) {
@@ -461,9 +464,13 @@ page.on('response', async (response) => {
         }
         if (result.error) { log(`[fetch] offset=${offset} error=${result.error}`); break; }
         const added = parseItemsIntoIntercepted(result.data || [], 'fetch');
-        if (p <= 1) log(`[fetch] offset=${offset} signDebug=${result.signDebug}`);
-        log(`[fetch] offset=${offset}: +${added} new (total=${intercepted.size}) hasMore=${result.hasMore} signed=${result.signed}`);
-        if (!result.hasMore) break;
+        if (p <= 1) log(`[fetch] offset=${offset} signDebug=${result.signDebug} cursor=${result.cursor}`);
+        log(`[fetch] offset=${offset}: +${added} new (total=${intercepted.size}) returned=${result.count} hasMore=${result.hasMore} signed=${result.signed}`);
+        if (!result.hasMore || result.count === 0) break;
+        // Advance by server cursor when provided, else by items received this page.
+        offset = (result.cursor != null && Number(result.cursor) > offset)
+          ? Number(result.cursor)
+          : offset + (result.count || 30);
         await page.waitForTimeout(400);
       }
     }
