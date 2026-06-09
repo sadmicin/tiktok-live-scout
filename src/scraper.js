@@ -569,6 +569,19 @@ export async function scrapeAllKeywords(keywords, maxRetries = 3) {
   let context = await newTikTokContext(browser);
   console.log(`[run] browser launched, scraping ${keywords.length} keyword(s)`);
 
+  // Connectivity probe: hit a neutral endpoint to isolate proxy failure from
+  // TikTok-specific blocking. If this fails too, the proxy/browser is the issue.
+  try {
+    const probe = await context.newPage();
+    await probe.goto('https://api.ipify.org?format=json', { waitUntil: 'domcontentloaded', timeout: 20000 });
+    const ip = await probe.evaluate(() => document.body?.innerText || '').catch(() => '');
+    console.log(`[probe] connectivity OK — exit IP: ${ip.slice(0, 120)}`);
+    await probe.close();
+  } catch (probeErr) {
+    console.log(`[probe] connectivity FAILED: ${probeErr?.message?.split('\n')[0] || probeErr}`);
+    console.log('[probe] → proxy or browser networking is broken, not TikTok-specific');
+  }
+
   const results = [];
   try {
     for (const keyword of keywords) {
