@@ -45,13 +45,15 @@ async function launchBrowser() {
   // Headful Chromium under Xvfb — matches easyapi's working stack. Headful is
   // important: TikTok serves the full live grid to a real-looking browser and
   // the gated/blank variant to obvious headless automation.
-  try {
-    const exe = chromium.executablePath();
-    console.log(`[launch] executablePath=${exe} exists=${fs.existsSync(exe)}`);
-  } catch (e) {
-    console.log(`[launch] executablePath unresolved: ${e?.message}`);
+  if (DEBUG) {
+    try {
+      const exe = chromium.executablePath();
+      console.log(`[launch] executablePath=${exe} exists=${fs.existsSync(exe)}`);
+    } catch (e) {
+      console.log(`[launch] executablePath unresolved: ${e?.message}`);
+    }
+    console.log(`[launch] DISPLAY=${process.env.DISPLAY || 'unset'} PLAYWRIGHT_BROWSERS_PATH=${process.env.PLAYWRIGHT_BROWSERS_PATH || 'unset'}`);
   }
-  console.log(`[launch] DISPLAY=${process.env.DISPLAY || 'unset'} PLAYWRIGHT_BROWSERS_PATH=${process.env.PLAYWRIGHT_BROWSERS_PATH || 'unset'}`);
   const browser = await chromium.launch({
     headless: false,
     timeout: 45000,
@@ -83,7 +85,7 @@ async function newTikTokContext(browser) {
   return context;
 }
 
-async function dismissLoginPopup(page, log) {
+async function dismissLoginPopup(page, dbg) {
   // Escape closes the login modal in place; clicking the generic Close button
   // can redirect to /search/user, so prefer Escape.
   try {
@@ -93,7 +95,7 @@ async function dismissLoginPopup(page, log) {
   for (const sel of ['[data-e2e="modal-close-inner-button"]', '[data-e2e="close-login-modal"]']) {
     try {
       await page.locator(sel).click({ timeout: 1200 });
-      log(`[popup] dismissed via ${sel}`);
+      dbg(`[popup] dismissed via ${sel}`);
       await page.waitForTimeout(500);
       return;
     } catch { /* not present */ }
@@ -176,15 +178,15 @@ async function scrapeKeywordOnce(keyword, context, log, dbg) {
         const items = json?.data || [];
         if (!Array.isArray(items) || items.length === 0) return;
         const added = parseItems(items, 'scroll');
-        if (added > 0) log(`[api] +${added} rooms (total=${intercepted.size}) hasMore=${json?.has_more}`);
+        if (added > 0) dbg(`[api] +${added} rooms (total=${intercepted.size}) hasMore=${json?.has_more}`);
       } catch { /* non-JSON or already consumed */ }
     });
 
     const url = liveSearchUrl(keyword);
-    log(`[scrape] keyword="${keyword}" goto ${url.slice(0, 70)}`);
+    dbg(`[scrape] keyword="${keyword}" goto ${url.slice(0, 70)}`);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForTimeout(3000);
-    await dismissLoginPopup(page, log);
+    await dismissLoginPopup(page, dbg);
 
     // If TikTok bounced us to /search/user, go back to the live tab.
     if (!page.url().includes('/search/live')) {
@@ -197,7 +199,7 @@ async function scrapeKeywordOnce(keyword, context, log, dbg) {
     // (easyapi waits ~12s after load before scrolling).
     await page.waitForTimeout(9000);
     const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0);
-    log(`[scrape] after load: bodyLen=${bodyLen} rooms=${intercepted.size}`);
+    dbg(`[scrape] after load: bodyLen=${bodyLen} rooms=${intercepted.size}`);
 
     // Native scroll loop — the only path that gets the full result set.
     const MAX_SCROLLS = 30;
@@ -213,7 +215,7 @@ async function scrapeKeywordOnce(keyword, context, log, dbg) {
         if (stale >= 3) { log(`[scrape] reached end of results after ${s + 1} scrolls`); break; }
       } else {
         stale = 0;
-        log(`[scrape] scroll ${s + 1}: +${intercepted.size - prev} (total=${intercepted.size})`);
+        dbg(`[scrape] scroll ${s + 1}: +${intercepted.size - prev} (total=${intercepted.size})`);
       }
     }
 
