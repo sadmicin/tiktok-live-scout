@@ -208,12 +208,36 @@ async function scrapeKeywordOnce(keyword, context, log, dbg) {
       await page.waitForTimeout(3000);
     }
 
+    // Dismissing the login modal bounces the page to the Users tab (with or
+    // without a URL change). Re-assert the LIVE tab by clicking it in place —
+    // a full re-goto re-triggers the modal cycle.
+    async function ensureLiveTab() {
+      const onLive = page.url().includes('/search/live');
+      const tabSelected = await page.evaluate(() => {
+        const tabs = Array.from(document.querySelectorAll('[role="tab"], a'));
+        const live = tabs.find(t => t.textContent?.trim() === 'LIVE');
+        return live ? (live.getAttribute('aria-selected') === 'true' || live.className.includes('active')) : null;
+      }).catch(() => null);
+      if (onLive && tabSelected !== false) return;
+      log(`[scrape] bounced off live tab (url=${page.url().slice(0, 60)}) — clicking LIVE tab`);
+      try {
+        await page.locator('a[href*="/search/live"], [role="tab"]:has-text("LIVE")').first().click({ timeout: 3000 });
+        await page.waitForTimeout(3000);
+      } catch {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForTimeout(3000);
+      }
+    }
+
     // Give the initial grid time to render + fire its first API pages
     // (easyapi waits ~12s after load before scrolling). The login modal pops
     // somewhere in this window, so keep checking for it rather than sleeping.
     for (let w = 0; w < 4; w++) {
       await page.waitForTimeout(3000);
-      if (await dismissLoginPopup(page, dbg)) log('[popup] login modal dismissed');
+      if (await dismissLoginPopup(page, dbg)) {
+        log('[popup] login modal dismissed');
+        await ensureLiveTab();
+      }
     }
     const bodyLen = await page.evaluate(() => document.body?.innerText?.length || 0);
     dbg(`[scrape] after load: bodyLen=${bodyLen} rooms=${intercepted.size}`);
@@ -226,8 +250,14 @@ async function scrapeKeywordOnce(keyword, context, log, dbg) {
       const prev = intercepted.size;
       await page.mouse.wheel(0, 2000);
       await page.waitForTimeout(3000);
-      // The modal can reappear mid-scroll and freeze the grid.
-      if (await dismissLoginPopup(page, dbg)) log('[popup] login modal dismissed mid-scroll');
+      // The modal can reappear mid-scroll and freeze the grid. A dismissal
+      // means the grid was blocked — re-assert the tab and restart the stale
+      // countdown so the deferred fetch gets time to land.
+      if (await dismissLoginPopup(page, dbg)) {
+        log('[popup] login modal dismissed mid-scroll');
+        await ensureLiveTab();
+        stale = -2;
+      }
       if (intercepted.size === prev) {
         stale++;
         // Allow a couple of empty scrolls before declaring the end.
