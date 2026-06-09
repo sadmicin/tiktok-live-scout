@@ -79,19 +79,22 @@ async function launchBrowser() {
   // geoip:true makes Camoufox derive timezone, locale and geolocation from the
   // proxy's exit IP so the fingerprint is internally consistent — key for trust.
   // humanize adds human-like cursor movement. os:'windows' matches our UA story.
+  // humanize:true spawns a subprocess for cursor simulation; skip it in Docker
+  // (causes browser crash on Railway). os:'windows' matches the proxy geo story.
   const baseOpts = {
     headless: false, // run under Xvfb (xvfb-run in start script)
     os: 'windows',
-    humanize: true,
     ...(proxy ? { proxy } : {}),
   };
   let camoufoxOpts;
   try {
     camoufoxOpts = await launchOptions({ ...baseOpts, geoip: !!proxy });
+    console.log('[proxy] camoufox launchOptions ok, executablePath:', camoufoxOpts.executablePath?.slice(-60));
   } catch (err) {
     // GeoIP DB may not be present — fall back without it rather than aborting.
     console.log('[proxy] geoip unavailable, launching without it:', err?.message || err);
     camoufoxOpts = await launchOptions(baseOpts);
+    console.log('[proxy] camoufox launchOptions fallback ok, executablePath:', camoufoxOpts.executablePath?.slice(-60));
   }
 
   const browser = await firefox.launch({
@@ -99,6 +102,7 @@ async function launchBrowser() {
     timeout: 60000,
     ...(proxy ? { proxy } : {}),
   });
+  browser.on('disconnected', () => console.log('[browser] disconnected (crashed or closed)'));
   console.log('[proxy] camoufox launched ok');
   return browser;
 }
@@ -234,6 +238,7 @@ async function scrapeTikTokLiveOnce(keyword, context, log, dbg) {
 
   try {
     const page = await context.newPage();
+    page.on('crash', () => log('[page] CRASHED'));
 
     const intercepted = new Map(); // username -> room, deduped
 
