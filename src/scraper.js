@@ -228,6 +228,16 @@ async function scrapeKeywordOnce(keyword, context, log, dbg) {
     // Intercept the live-search API responses fired on load + each scroll.
     page.on('response', async (response) => {
       const url = response.url();
+      // Diagnostic: log every TikTok search/live API call + its shape so we can
+      // see what the page actually requests when the grid stays on skeletons.
+      if (DEBUG && url.includes('/api/') && (url.includes('search') || url.includes('live'))) {
+        let shape = '';
+        try {
+          const j = await response.clone().json();
+          shape = `status_code=${j?.status_code} data.len=${Array.isArray(j?.data) ? j.data.length : 'n/a'} has_more=${j?.has_more}`;
+        } catch { shape = 'non-json'; }
+        log(`[api-probe] ${response.status()} ${url.split('?')[0]} :: ${shape}`);
+      }
       if (!url.includes('/api/search/live/full/')) return;
       try {
         const json = await response.json();
