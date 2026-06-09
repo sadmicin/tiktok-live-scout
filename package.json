@@ -3,15 +3,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "postinstall": "npx rebrowser-playwright install chromium",
-    "start": "REBROWSER_PATCHES_RUNTIME_FIX_MODE=addBinding xvfb-run -a -s \"-ac -screen 0 1920x1080x24+32 -nolisten tcp\" node src/index.js"
+    "postinstall": "npx camoufox-js fetch",
+    "start": "xvfb-run -a -s \"-ac -screen 0 1920x1080x24+32 -nolisten tcp\" node src/index.js"
   },
   "dependencies": {
+    "camoufox-js": "^0.11.0",
     "express": "^4.18.2",
     "node-cron": "^3.0.3",
-    "playwright": "^1.49.1",
-    "playwright-extra": "^4.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "rebrowser-playwright": "^1.52.0"
+    "playwright-core": "^1.52.0"
   }
 }

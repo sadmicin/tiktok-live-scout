@@ -1,13 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-import { addExtra } from 'playwright-extra';
-import rebrowserPlaywright from 'rebrowser-playwright';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { firefox } from 'playwright-core';
+import { launchOptions } from 'camoufox-js';
 
-// Wrap rebrowser-playwright's chromium (patched against CDP/automation leaks)
-// with playwright-extra so we keep the stealth plugin on top.
-const chromium = addExtra(rebrowserPlaywright.chromium);
-chromium.use(StealthPlugin());
+// Camoufox is a Firefox-based anti-detect browser. Unlike Chromium+stealth,
+// it patches fingerprints at the C++ level (0% detection in current benchmarks),
+// which is what's needed to get TikTok's search/live page to actually render.
 
 const DEBUG = process.env.DEBUG !== 'FALSE' && process.env.DEBUG !== 'false';
 const GET_IMAGES = process.env.GET_IMAGES === 'true' || process.env.GET_IMAGES === 'TRUE';
@@ -70,48 +68,49 @@ async function launchBrowser() {
   console.log('[proxy] server:', proxyServer || 'NONE — set PROXY_SERVER env var');
   console.log('[proxy] username:', proxyUsername ? proxyUsername.slice(0, 20) + '…' : 'NONE');
 
-  // Connect to Bright Data proxy over plain HTTP regardless of port —
-  // the SSL capability refers to target sites, not the proxy connection itself.
-  const proxyUrl = proxyServer ? `http://${proxyServer}` : null;
+  // Connect to the IPRoyal residential proxy over plain HTTP.
+  const proxy = proxyServer ? {
+    server: `http://${proxyServer}`,
+    username: proxyUsername,
+    password: proxyPassword,
+  } : undefined;
 
-  console.log('[proxy] launching rebrowser chromium (patched binary)…');
-  const browser = await chromium.launch({
-    headless: false,
+  console.log('[proxy] launching Camoufox (firefox anti-detect)…');
+  // geoip:true makes Camoufox derive timezone, locale and geolocation from the
+  // proxy's exit IP so the fingerprint is internally consistent — key for trust.
+  // humanize adds human-like cursor movement. os:'windows' matches our UA story.
+  const baseOpts = {
+    headless: false, // run under Xvfb (xvfb-run in start script)
+    os: 'windows',
+    humanize: true,
+    ...(proxy ? { proxy } : {}),
+  };
+  let camoufoxOpts;
+  try {
+    camoufoxOpts = await launchOptions({ ...baseOpts, geoip: !!proxy });
+  } catch (err) {
+    // GeoIP DB may not be present — fall back without it rather than aborting.
+    console.log('[proxy] geoip unavailable, launching without it:', err?.message || err);
+    camoufoxOpts = await launchOptions(baseOpts);
+  }
+
+  const browser = await firefox.launch({
+    ...camoufoxOpts,
     timeout: 60000,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-dev-shm-usage',
-      '--ignore-certificate-errors',
-    ],
-    ...(proxyUrl ? {
-      proxy: {
-        server: proxyUrl,
-        username: proxyUsername,
-        password: proxyPassword,
-      }
-    } : {})
+    ...(proxy ? { proxy } : {}),
   });
-  console.log('[proxy] chromium launched ok');
+  console.log('[proxy] camoufox launched ok');
   return browser;
 }
 
 async function newTikTokContext(browser) {
   fs.mkdirSync('output', { recursive: true });
 
+  // Let Camoufox own the fingerprint (UA, locale, timezone, headers, viewport).
+  // Overriding userAgent / sec-ch-ua here would create a Chromium-on-Firefox
+  // mismatch that defeats the whole point of the anti-detect browser.
   const context = await browser.newContext({
     ignoreHTTPSErrors: true,
-    viewport: { width: 1920, height: 1080 },
-    userAgent: TIKTOK_USER_AGENT,
-    locale: 'en-US',
-    timezoneId: 'America/New_York',
-    extraHTTPHeaders: {
-      'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'accept-language': 'en-US,en;q=0.9',
-    },
     ...(hasGuestState() ? { storageState: STORAGE_STATE_PATH } : {})
   });
 
