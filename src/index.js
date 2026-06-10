@@ -59,7 +59,6 @@ async function runScrape() {
 
     return latestRun;
   } catch (error) {
-    console.error('[run] FAILED:', error?.stack || error);
     latestRun = {
       created_at: new Date().toISOString(),
       commit: commitHash,
