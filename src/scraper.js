@@ -107,6 +107,20 @@ async function newTikTokContext(browser) {
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
   });
+  // Block images/media/fonts and CDN hosts: ~90% of proxy GB was
+  // tiktokcdn-us.com media we never use (GET_IMAGES fetches happen
+  // server-side, outside the browser). We only need HTML + JS + the search
+  // API JSON. Abort by resourceType AND by host, since the browser sometimes
+  // labels CDN media as "other"/"xhr".
+  const BLOCK_HOSTS = ['tiktokcdn', 'tiktokcdn-us', 'ibyteimg', 'byteoversea', 'muscdn', 'akamaized'];
+  await context.route('**/*', (route) => {
+    const req = route.request();
+    const type = req.resourceType();
+    if (type === 'image' || type === 'media' || type === 'font') return route.abort();
+    const host = (() => { try { return new URL(req.url()).hostname; } catch { return ''; } })();
+    if (BLOCK_HOSTS.some(h => host.includes(h))) return route.abort();
+    return route.continue();
+  });
   return context;
 }
 
@@ -132,30 +146,34 @@ async function warmSession(context, log) {
 // it pops when the search content loads, not on page load. A one-shot dismiss
 // right after goto runs before the modal exists and the grid stays blocked.
 // So: dismiss whenever it's visible, and call this repeatedly during the run.
+// The login modal ("Log in to search for popular content") gates live search
+// for guests. Both Escape and the close button trigger TikTok's handler, which
+// navigates the SPA to /search/user — bouncing us off the LIVE tab. Instead we
+// strip the modal + its overlay straight out of the DOM and release the body
+// scroll-lock, which unblocks the page without any navigation.
 async function dismissLoginPopup(page, dbg) {
-  const modal = page.locator('#loginContainer, [data-e2e="login-modal"]').first();
-  try {
-    if (!(await modal.isVisible({ timeout: 500 }))) return false;
-  } catch { return false; }
-  // Escape closes the modal in place; clicking the generic Close button
-  // can redirect to /search/user, so prefer Escape.
-  try {
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(600);
-    if (!(await modal.isVisible({ timeout: 300 }).catch(() => false))) {
-      dbg('[popup] dismissed via Escape');
-      return true;
+  const removed = await page.evaluate(() => {
+    const sels = [
+      '#loginContainer',
+      '[data-e2e="login-modal"]',
+      '[id*="login-modal"]',
+      '[class*="DivModalContainer"]',
+      '[class*="DivModalMask"]',
+      '[class*="ModalMask"]',
+      '[class*="-Mask"]',
+    ];
+    let n = 0;
+    for (const s of sels) {
+      document.querySelectorAll(s).forEach(el => { el.remove(); n++; });
     }
-  } catch { /* ignore */ }
-  for (const sel of ['[data-e2e="modal-close-inner-button"]', '[data-e2e="close-login-modal"]', '#loginContainer [aria-label="Close"]']) {
-    try {
-      await page.locator(sel).click({ timeout: 1200 });
-      dbg(`[popup] dismissed via ${sel}`);
-      await page.waitForTimeout(500);
-      return true;
-    } catch { /* not present */ }
-  }
-  return false;
+    // Release the scroll-lock TikTok sets while the modal is up.
+    document.documentElement.style.overflow = 'auto';
+    document.body.style.overflow = 'auto';
+    document.body.style.position = 'static';
+    return n;
+  }).catch(() => 0);
+  if (removed > 0) dbg(`[popup] stripped ${removed} modal/overlay node(s) from DOM`);
+  return removed > 0;
 }
 
 // Parse the raw room objects from /api/search/live/full/ responses, including
