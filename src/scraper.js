@@ -107,18 +107,14 @@ async function newTikTokContext(browser) {
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
   });
-  // Block images/media/fonts and CDN hosts: ~90% of proxy GB was
-  // tiktokcdn-us.com media we never use (GET_IMAGES fetches happen
-  // server-side, outside the browser). We only need HTML + JS + the search
-  // API JSON. Abort by resourceType AND by host, since the browser sometimes
-  // labels CDN media as "other"/"xhr".
-  const BLOCK_HOSTS = ['tiktokcdn', 'tiktokcdn-us', 'ibyteimg', 'byteoversea', 'muscdn', 'akamaized'];
+  // Block images/media/fonts: ~85% of proxy GB was tiktokcdn-us.com cover /
+  // avatar images we never use (GET_IMAGES fetches run server-side, outside
+  // the browser). Filter by resourceType ONLY — the images are tagged "image"
+  // regardless of host. Do NOT block by hostname: TikTok serves its JS app
+  // bundles from the same tiktokcdn hosts, so a host filter blanks the page.
   await context.route('**/*', (route) => {
-    const req = route.request();
-    const type = req.resourceType();
+    const type = route.request().resourceType();
     if (type === 'image' || type === 'media' || type === 'font') return route.abort();
-    const host = (() => { try { return new URL(req.url()).hostname; } catch { return ''; } })();
-    if (BLOCK_HOSTS.some(h => host.includes(h))) return route.abort();
     return route.continue();
   });
   return context;
