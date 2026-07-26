@@ -150,6 +150,12 @@ function makeRoomParser(intercepted) {
           cover: raw?.cover?.url_list?.[0] || '',
           streamSnapshot: raw?.stream_snapshot?.urls?.[0] || raw?.stream_snapshot?.url_list?.[0] || null,
           liveUrl: `https://www.tiktok.com/@${username}/live`,
+          category: raw?.hashtag?.title || null,
+          games: (raw?.game_tag || []).map(g => g?.show_name).filter(Boolean),
+          isGaming: !!(raw?.is_game
+            || (raw?.game_tag || []).length > 0
+            || raw?.live_type_third_party
+            || raw?.hashtag?.title === 'Gaming'),
           battle,
           source,
         });
